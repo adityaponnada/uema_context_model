@@ -74,21 +74,21 @@ python -m cli.main prep-withdrawn \
 
 # 8. Evaluate General GTCN on withdrew participants
 python -m cli.main withdrew-general \
+  --output_dir /path/to/output \
   --withdrew_csv /path/to/output/processed_features_withdrew.csv \
-  --medians_csv /path/to/output/general_rnn_medians.csv \
-  --global_means_csv /path/to/output/global_means_general_rnn.csv \
-  --column_list /path/to/output/processed_feature_columns.txt \
-  --threshold 0.43 \
-  --output_dir /path/to/output
+  --medians_csv general_rnn_medians.csv \
+  --global_means_csv global_means_general_rnn.csv \
+  --column_list processed_feature_columns.txt \
+  --threshold 0.43
 
 # 9. Evaluate Hybrid GTCN on withdrew participants + random baseline
 python -m cli.main withdrew-hybrid \
+  --output_dir /path/to/output \
   --withdrew_csv /path/to/output/processed_features_withdrew.csv \
-  --medians_csv /path/to/output/hybrid_rnn_medians.csv \
-  --global_means_csv /path/to/output/global_means_hybrid_rnn.csv \
-  --column_list /path/to/output/processed_feature_columns.txt \
-  --threshold 0.47 \
-  --output_dir /path/to/output
+  --medians_csv hybrid_rnn_medians.csv \
+  --global_means_csv global_means_hybrid_rnn.csv \
+  --column_list processed_feature_columns.txt \
+  --threshold 0.47
 
 # 10. Survival analysis and statistical comparisons
 python -m cli.main survival \

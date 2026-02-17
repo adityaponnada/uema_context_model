@@ -42,15 +42,15 @@ def parse_args() -> argparse.Namespace:
         description="Evaluate Hybrid GTCN (Setup 2) on withdrew participants + random baseline."
     )
     parser.add_argument("--output_dir", type=str, required=True,
-                        help="Directory to save evaluation outputs.")
+                        help="Directory containing intermediate files and where outputs are saved.")
     parser.add_argument("--withdrew_csv", type=str, required=True,
                         help="Full path to processed withdrew features CSV file.")
     parser.add_argument("--medians_csv", type=str, required=True,
-                        help="Full path to training medians CSV file.")
+                        help="Filename of training medians CSV (in output_dir).")
     parser.add_argument("--global_means_csv", type=str, required=True,
-                        help="Full path to training global means CSV file.")
+                        help="Filename of training global means CSV (in output_dir).")
     parser.add_argument("--column_list", type=str, required=True,
-                        help="Full path to feature column list .txt file.")
+                        help="Filename of feature column list .txt (in output_dir).")
     parser.add_argument("--threshold", type=float, required=True,
                         help="Decision threshold from model tuning stage.")
     parser.add_argument("--block_rate", type=float, default=0.20,
@@ -67,6 +67,11 @@ def main() -> None:
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
+    # Resolve filenames against output_dir (except withdrew_csv which is a full path)
+    medians_csv_path = os.path.join(args.output_dir, args.medians_csv)
+    global_means_csv_path = os.path.join(args.output_dir, args.global_means_csv)
+    column_list_path = os.path.join(args.output_dir, args.column_list)
+
     configure_gpu(args.use_cpu)
 
     # Load data
@@ -75,18 +80,17 @@ def main() -> None:
     print(f"Withdrew features shape: {withdrew_features.shape}")
 
     # Load training statistics
-    global_median = pd.read_csv(args.medians_csv)
-    print(f"Loaded medians: {args.medians_csv}")
-    global_means = pd.read_csv(args.global_means_csv)
-    print(f"Loaded global means: {args.global_means_csv}")
+    global_median = pd.read_csv(medians_csv_path)
+    print(f"Loaded medians: {medians_csv_path}")
+    global_means = pd.read_csv(global_means_csv_path)
+    print(f"Loaded global means: {global_means_csv_path}")
 
     # Impute and normalize
     withdrew_features = impute_within_participant(withdrew_features, global_median)
     withdrew_features = z_normalize_within_participant(withdrew_features, global_means)
 
     # Filter to training columns
-    col_path = args.column_list
-    with open(col_path, "r") as f:
+    with open(column_list_path, "r") as f:
         column_list = [line.strip() for line in f if line.strip()]
     withdrew_features = withdrew_features[column_list]
     print(f"Filtered to {len(column_list)} columns")
