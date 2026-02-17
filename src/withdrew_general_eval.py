@@ -51,8 +51,6 @@ def parse_args() -> argparse.Namespace:
                         help="Full path to training global means CSV file.")
     parser.add_argument("--column_list", type=str, required=True,
                         help="Full path to feature column list .txt file.")
-    parser.add_argument("--model_file", type=str, required=True,
-                        help="Full path to trained model .h5 file.")
     parser.add_argument("--threshold", type=float, required=True,
                         help="Decision threshold from model tuning stage.")
     parser.add_argument("--use_cpu", action="store_true", default=True,
@@ -114,9 +112,10 @@ def main() -> None:
     print("Saved burden thresholds")
 
     # Run zero-shot simulation
-    models_dir = os.path.dirname(args.model_file)
+    models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+    model_file = os.path.join(models_dir, "best_model_safe.h5")
     df_sim = run_zero_shot_simulation(
-        args.model_file, X_withdrawn, Y_withdrawn, p_ids,
+        model_file, X_withdrawn, Y_withdrawn, p_ids,
         threshold=args.threshold, models_dir=models_dir
     )
     df_sim.to_csv(os.path.join(args.output_dir, "withdrawn_user_simulation_setup1.csv"), index=False)
