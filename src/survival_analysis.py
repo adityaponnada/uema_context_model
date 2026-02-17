@@ -23,22 +23,17 @@ def parse_args() -> argparse.Namespace:
         description="Survival analysis comparing model setups and random baseline."
     )
     parser.add_argument("--output_dir", type=str, required=True,
-                        help="Directory containing simulation CSVs and to save outputs.")
-    parser.add_argument("--random_csv", type=str,
-                        default="withdrawn_user_random_baseline_simulation.csv",
-                        help="Random baseline simulation CSV (in output_dir).")
-    parser.add_argument("--s1_extension_csv", type=str,
-                        default="withdrawn_user_study_extension_setup1.csv",
-                        help="Setup 1 study extension CSV (in output_dir).")
-    parser.add_argument("--s2_extension_csv", type=str,
-                        default="withdrawn_user_study_extension_setup2.csv",
-                        help="Setup 2 study extension CSV (in output_dir).")
-    parser.add_argument("--general_f1_csv", type=str,
-                        default="general_f1_scores.csv",
-                        help="Generalized model per-user F1 scores CSV (in output_dir).")
-    parser.add_argument("--hybrid_f1_csv", type=str,
-                        default="hybrid_f1_scores.csv",
-                        help="Hybrid model per-user F1 scores CSV (in output_dir).")
+                        help="Directory to save output figures and results.")
+    parser.add_argument("--random_csv", type=str, required=True,
+                        help="Full path to random baseline simulation CSV file.")
+    parser.add_argument("--s1_extension_csv", type=str, required=True,
+                        help="Full path to Setup 1 study extension CSV file.")
+    parser.add_argument("--s2_extension_csv", type=str, required=True,
+                        help="Full path to Setup 2 study extension CSV file.")
+    parser.add_argument("--general_f1_csv", type=str, default=None,
+                        help="Full path to generalized model per-user F1 scores CSV file (optional).")
+    parser.add_argument("--hybrid_f1_csv", type=str, default=None,
+                        help="Full path to hybrid model per-user F1 scores CSV file (optional).")
     return parser.parse_args()
 
 
@@ -600,14 +595,14 @@ def main() -> None:
     os.makedirs(args.output_dir, exist_ok=True)
 
     # Load simulation results
-    df_sim_random = pd.read_csv(os.path.join(args.output_dir, args.random_csv))
-    print(f"Random baseline shape: {df_sim_random.shape}")
+    df_sim_random = pd.read_csv(args.random_csv)
+    print(f"Random baseline: {args.random_csv} {df_sim_random.shape}")
 
-    df_s1 = pd.read_csv(os.path.join(args.output_dir, args.s1_extension_csv))
-    print(f"Setup 1 extension shape: {df_s1.shape}")
+    df_s1 = pd.read_csv(args.s1_extension_csv)
+    print(f"Setup 1 extension: {args.s1_extension_csv} {df_s1.shape}")
 
-    df_s2 = pd.read_csv(os.path.join(args.output_dir, args.s2_extension_csv))
-    print(f"Setup 2 extension shape: {df_s2.shape}")
+    df_s2 = pd.read_csv(args.s2_extension_csv)
+    print(f"Setup 2 extension: {args.s2_extension_csv} {df_s2.shape}")
 
     # Prepare survival DataFrame
     df_survival = prepare_survival_dataframe(df_sim_random, df_s1, df_s2)
@@ -637,13 +632,10 @@ def main() -> None:
     df_hr.to_csv(os.path.join(args.output_dir, "hazard_ratio_summary.csv"), index=False)
     save_text_results(hr_text, args.output_dir, "hazard_ratio_results.txt")
 
-    # Held-out F1 comparison (if CSVs exist)
-    general_f1_path = os.path.join(args.output_dir, args.general_f1_csv)
-    hybrid_f1_path = os.path.join(args.output_dir, args.hybrid_f1_csv)
-
-    if os.path.exists(general_f1_path) and os.path.exists(hybrid_f1_path):
-        df_general_f1 = pd.read_csv(general_f1_path)
-        df_hybrid_f1 = pd.read_csv(hybrid_f1_path)
+    # Held-out F1 comparison (if CSVs provided)
+    if args.general_f1_csv and args.hybrid_f1_csv and os.path.exists(args.general_f1_csv) and os.path.exists(args.hybrid_f1_csv):
+        df_general_f1 = pd.read_csv(args.general_f1_csv)
+        df_hybrid_f1 = pd.read_csv(args.hybrid_f1_csv)
 
         # Rename columns for consistency if needed
         if "f1_score_c0" in df_general_f1.columns:

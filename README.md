@@ -20,7 +20,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-All pipeline steps are run through the CLI entry point. Each step requires `--data_dir` (input data) and `--output_dir` (where intermediate files, figures, and results are saved).
+All pipeline steps are run through the CLI entry point. All input files are specified as explicit full paths to CSV or TXT files.
 
 ```bash
 python -m cli.main <step> [options]
@@ -50,37 +50,53 @@ python -m cli.main feature-norm \
 
 # 4. Prepare held-out dataset
 python -m cli.main heldout-prep \
-  --data_dir /path/to/time_study_data \
-  --output_dir /path/to/output \
-  --holdout_list /path/to/output/holdout_list.txt
+  --holdout_list /path/to/output/holdout_list.txt \
+  --compliance_dir /path/to/time_study_data/compliance_matrix \
+  --output_csv /path/to/output/heldout_comp_mx.csv
 
 # 5. Train General GTCN model (Setup 1)
 python -m cli.main general-rnn \
-  --data_dir /path/to/output \
+  --input_csv /path/to/output/processed_features_rnn.csv \
+  --heldout_csv /path/to/output/processed_features_heldout.csv \
   --output_dir /path/to/output
 
 # 6. Train Hybrid GTCN model (Setup 2)
 python -m cli.main hybrid-rnn \
-  --data_dir /path/to/output \
+  --input_csv /path/to/output/processed_features_rnn.csv \
+  --heldout_csv /path/to/output/processed_features_heldout.csv \
   --output_dir /path/to/output
 
 # 7. Prepare withdrawn participant data
 python -m cli.main prep-withdrawn \
-  --data_dir /path/to/time_study_data \
-  --output_dir /path/to/output
+  --status_csv /path/to/time_study_data/participant_status_tracking_v2.csv \
+  --compliance_dir /path/to/time_study_data/compliance_matrix \
+  --output_csv /path/to/output/withdrew_comp_mx.csv
 
 # 8. Evaluate General GTCN on withdrew participants
 python -m cli.main withdrew-general \
-  --data_dir /path/to/output \
+  --withdrew_csv /path/to/output/processed_features_withdrew.csv \
+  --medians_csv /path/to/output/general_rnn_medians.csv \
+  --global_means_csv /path/to/output/global_means_general_rnn.csv \
+  --column_list /path/to/output/processed_feature_columns.txt \
+  --model_file /path/to/models/best_model_safe.h5 \
   --output_dir /path/to/output
 
 # 9. Evaluate Hybrid GTCN on withdrew participants + random baseline
 python -m cli.main withdrew-hybrid \
-  --data_dir /path/to/output \
+  --withdrew_csv /path/to/output/processed_features_withdrew.csv \
+  --medians_csv /path/to/output/hybrid_rnn_medians.csv \
+  --global_means_csv /path/to/output/global_means_hybrid_rnn.csv \
+  --column_list /path/to/output/processed_feature_columns.txt \
+  --model_file /path/to/models/best_within_user_gtcn.h5 \
   --output_dir /path/to/output
 
 # 10. Survival analysis and statistical comparisons
 python -m cli.main survival \
+  --random_csv /path/to/output/withdrawn_user_random_baseline_simulation.csv \
+  --s1_extension_csv /path/to/output/withdrawn_user_study_extension_setup1.csv \
+  --s2_extension_csv /path/to/output/withdrawn_user_study_extension_setup2.csv \
+  --general_f1_csv /path/to/output/general_f1_scores.csv \
+  --hybrid_f1_csv /path/to/output/hybrid_f1_scores.csv \
   --output_dir /path/to/output
 ```
 

@@ -47,14 +47,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train and evaluate the Hybrid GTCN model (Setup 2)."
     )
-    parser.add_argument("--data_dir", type=str, required=True,
-                        help="Directory containing processed feature files.")
     parser.add_argument("--output_dir", type=str, required=True,
                         help="Directory to save figures, results, and intermediate files.")
-    parser.add_argument("--input_csv", type=str, default="processed_features_rnn.csv",
-                        help="Processed features CSV file name (in data_dir).")
-    parser.add_argument("--heldout_csv", type=str, default="processed_features_heldout.csv",
-                        help="Processed held-out features CSV file name (in data_dir).")
+    parser.add_argument("--input_csv", type=str, required=True,
+                        help="Full path to processed features CSV file.")
+    parser.add_argument("--heldout_csv", type=str, required=True,
+                        help="Full path to processed held-out features CSV file.")
     parser.add_argument("--train_frac", type=float, default=0.1,
                         help="Fraction of each user's data for training (default: 0.1).")
     parser.add_argument("--epochs", type=int, default=20,
@@ -221,8 +219,8 @@ def main() -> None:
     configure_gpu(args.use_cpu)
 
     # Load data
-    input_path = os.path.join(args.data_dir, args.input_csv)
-    raw_feature_df_scaled = pd.read_csv(input_path)
+    raw_feature_df_scaled = pd.read_csv(args.input_csv)
+    print(f"Loaded input CSV: {args.input_csv}")
     print(f"Loaded data: {raw_feature_df_scaled.shape}")
 
     raw_feature_df_scaled = drop_zero_mi_columns(raw_feature_df_scaled, verbose=True)
@@ -304,10 +302,9 @@ def main() -> None:
         threshold = args.threshold if args.threshold else 0.47
 
     # Evaluate on held-out data
-    heldout_path = os.path.join(args.data_dir, args.heldout_csv)
-    if os.path.exists(heldout_path):
-        print(f"\nLoading held-out data: {heldout_path}")
-        heldout_df = pd.read_csv(heldout_path)
+    if os.path.exists(args.heldout_csv):
+        print(f"\nLoading held-out data: {args.heldout_csv}")
+        heldout_df = pd.read_csv(args.heldout_csv)
 
         heldout_df = impute_test_with_medians_and_ffill(
             heldout_df,

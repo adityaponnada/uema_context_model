@@ -7,7 +7,6 @@ loads their compliance matrix CSVs, and saves the assembled DataFrame.
 
 import os
 import argparse
-import datetime
 
 import pandas as pd
 
@@ -19,26 +18,23 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Prepare withdrew participant compliance matrix."
     )
-    parser.add_argument("--data_dir", type=str, required=True,
-                        help="Root directory containing TIME study data.")
-    parser.add_argument("--output_dir", type=str, required=True,
-                        help="Directory to save output files.")
-    parser.add_argument("--status_file", type=str, default="participant_status_tracking_v2.csv",
-                        help="Name of the participant status CSV file.")
-    parser.add_argument("--compliance_dir", type=str, default="compliance_matrix",
-                        help="Subdirectory name containing per-user compliance matrix folders.")
+    parser.add_argument("--status_csv", type=str, required=True,
+                        help="Full path to participant status tracking CSV file.")
+    parser.add_argument("--compliance_dir", type=str, required=True,
+                        help="Full path to directory containing per-user compliance matrix folders.")
+    parser.add_argument("--output_csv", type=str, required=True,
+                        help="Full path for the output withdrew compliance matrix CSV file.")
     return parser.parse_args()
 
 
 def main() -> None:
     """Main pipeline for preparing withdrew participant data."""
     args = parse_args()
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(args.output_csv) or ".", exist_ok=True)
 
     # Load participant status
-    status_path = os.path.join(args.data_dir, args.status_file)
-    status_df = pd.read_csv(status_path)
-    print(f"Loaded status file: {status_path}")
+    status_df = pd.read_csv(args.status_csv)
+    print(f"Loaded status file: {args.status_csv}")
 
     # Filter withdrew participants
     status_df = status_df[status_df["Participant Status "] == "Withdrew"][
@@ -55,8 +51,7 @@ def main() -> None:
     withdrew_ids = status_df["participant_id"].tolist()
 
     # Load compliance matrix for withdrew participants
-    compliance_dir = os.path.join(args.data_dir, args.compliance_dir)
-    withdrew_df = load_comp_matrix(withdrew_ids, compliance_dir)
+    withdrew_df = load_comp_matrix(withdrew_ids, args.compliance_dir)
     print(f"Withdrew DataFrame shape: {withdrew_df.shape}")
 
     if not withdrew_df.empty:
@@ -68,10 +63,8 @@ def main() -> None:
         print(f"Unique participants: {withdrew_df['Participant_ID'].nunique()}")
 
     # Save
-    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_path = os.path.join(args.output_dir, f"withdrew_comp_mx_{current_time}.csv")
-    withdrew_df.to_csv(out_path, index=False)
-    print(f"Withdrew dataframe saved to {out_path}")
+    withdrew_df.to_csv(args.output_csv, index=False)
+    print(f"Withdrew dataframe saved to {args.output_csv}")
 
 
 if __name__ == "__main__":

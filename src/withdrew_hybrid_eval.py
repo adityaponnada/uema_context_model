@@ -31,20 +31,18 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Evaluate Hybrid GTCN (Setup 2) on withdrew participants + random baseline."
     )
-    parser.add_argument("--data_dir", type=str, required=True,
-                        help="Directory containing processed data files.")
     parser.add_argument("--output_dir", type=str, required=True,
                         help="Directory to save evaluation outputs.")
-    parser.add_argument("--withdrew_csv", type=str, default="processed_features_withdrew.csv",
-                        help="Processed withdrew features CSV (in data_dir).")
-    parser.add_argument("--medians_csv", type=str, default="hybrid_rnn_medians.csv",
-                        help="Training medians CSV (in output_dir).")
-    parser.add_argument("--global_means_csv", type=str, default="global_means_hybrid_rnn.csv",
-                        help="Training global means CSV (in output_dir).")
-    parser.add_argument("--column_list", type=str, default="processed_feature_columns.txt",
-                        help="Feature column list file (in output_dir).")
-    parser.add_argument("--model_file", type=str, default="best_within_user_gtcn.h5",
-                        help="Model file name (in models/).")
+    parser.add_argument("--withdrew_csv", type=str, required=True,
+                        help="Full path to processed withdrew features CSV file.")
+    parser.add_argument("--medians_csv", type=str, required=True,
+                        help="Full path to training medians CSV file.")
+    parser.add_argument("--global_means_csv", type=str, required=True,
+                        help="Full path to training global means CSV file.")
+    parser.add_argument("--column_list", type=str, required=True,
+                        help="Full path to feature column list .txt file.")
+    parser.add_argument("--model_file", type=str, required=True,
+                        help="Full path to trained model .h5 file.")
     parser.add_argument("--threshold", type=float, default=0.47,
                         help="Decision threshold (default: 0.47).")
     parser.add_argument("--block_rate", type=float, default=0.20,
@@ -60,25 +58,26 @@ def main() -> None:
     """Main evaluation pipeline for Hybrid GTCN on withdrew data."""
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
-    models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
 
     configure_gpu(args.use_cpu)
 
     # Load data
-    withdrew_path = os.path.join(args.data_dir, args.withdrew_csv)
-    withdrew_features = pd.read_csv(withdrew_path)
+    withdrew_features = pd.read_csv(args.withdrew_csv)
+    print(f"Loaded withdrew CSV: {args.withdrew_csv}")
     print(f"Withdrew features shape: {withdrew_features.shape}")
 
     # Load training statistics
-    global_median = pd.read_csv(os.path.join(args.output_dir, args.medians_csv))
-    global_means = pd.read_csv(os.path.join(args.output_dir, args.global_means_csv))
+    global_median = pd.read_csv(args.medians_csv)
+    print(f"Loaded medians: {args.medians_csv}")
+    global_means = pd.read_csv(args.global_means_csv)
+    print(f"Loaded global means: {args.global_means_csv}")
 
     # Impute and normalize
     withdrew_features = impute_within_participant(withdrew_features, global_median)
     withdrew_features = z_normalize_within_participant(withdrew_features, global_means)
 
     # Filter to training columns
-    col_path = os.path.join(args.output_dir, args.column_list)
+    col_path = args.column_list
     with open(col_path, "r") as f:
         column_list = [line.strip() for line in f if line.strip()]
     withdrew_features = withdrew_features[column_list]
@@ -103,9 +102,9 @@ def main() -> None:
     )
 
     # Run zero-shot simulation with hybrid model
-    model_path = os.path.join(models_dir, args.model_file)
+    models_dir = os.path.dirname(args.model_file)
     df_sim = run_zero_shot_simulation(
-        model_path, X_withdrawn, Y_withdrawn, p_ids,
+        args.model_file, X_withdrawn, Y_withdrawn, p_ids,
         threshold=args.threshold, models_dir=models_dir
     )
     df_sim.to_csv(os.path.join(args.output_dir, "withdrawn_user_simulation_setup2.csv"), index=False)
