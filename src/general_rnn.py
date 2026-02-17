@@ -12,11 +12,21 @@ import os
 import gc
 import json
 import time
+import random
 import argparse
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+import matplotlib.pyplot as plt
+
+# Reproducibility
+SEED = 42
+os.environ['PYTHONHASHSEED'] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
 
 from src.helpers import (
     drop_zero_mi_columns,
@@ -109,7 +119,6 @@ def build_general_gtcn(l_chunk: int, num_features: int, conv_filters: int = 8, k
     Returns:
         Compiled Keras Model.
     """
-    import tensorflow as tf
     from tensorflow.keras.models import Model
     from tensorflow.keras.layers import (
         Input, Masking, Conv1D, multiply, Activation, Dropout, TimeDistributed, Dense
@@ -156,8 +165,6 @@ def train_model(
     Returns:
         Training history dict.
     """
-    import tensorflow as tf
-
     history_log = {"train_loss": [], "train_f1": [], "val_loss": [], "val_f1": []}
     best_val_f1 = -1.0
 
@@ -223,7 +230,6 @@ def main() -> None:
     models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
     os.makedirs(models_dir, exist_ok=True)
 
-    import tensorflow as tf
     configure_gpu(args.use_cpu)
 
     # Load and preprocess data
@@ -333,10 +339,11 @@ def main() -> None:
         best_model = tf.keras.models.load_model(
             os.path.join(models_dir, "best_model_safe.h5"), compile=False
         )
-        opt_thresh, best_f1 = find_optimal_threshold(
+        opt_thresh, best_f1, fig_thresh = find_optimal_threshold(
             best_model, X_test_chunked, Y_test_chunked
         )
         threshold = opt_thresh
+        save_figure(fig_thresh, args.output_dir, "general_rnn_f1_vs_threshold.png")
         save_text_results(
             f"Optimal threshold: {opt_thresh}\nBest F1 (Class 0): {best_f1}",
             args.output_dir, "general_rnn_optimal_threshold.txt"
@@ -346,7 +353,9 @@ def main() -> None:
             os.path.join(models_dir, "best_model_safe.h5"),
             custom_objects=get_custom_objects(), compile=False
         )
-        threshold = args.threshold if args.threshold else 0.43
+        if args.threshold is None:
+            raise ValueError("--threshold is required when using --skip_training (no tuning stage to derive it).")
+        threshold = args.threshold
 
     # Evaluate on held-out data
     if os.path.exists(args.heldout_csv):
@@ -371,15 +380,11 @@ def main() -> None:
         X_final, Y_final, heldout_pids = preprocess_held_out_data(heldout_df, L_CHUNK, NUM_CHUNKS)
 
         # Run final test
-        import matplotlib.pyplot as plt
-        f1_val = run_final_test(best_model, X_final, Y_final, threshold=threshold, setup_name="General GTCN")
+        f1_val, metrics_text = run_final_test(best_model, X_final, Y_final, threshold=threshold, setup_name="General GTCN")
         plt.savefig(os.path.join(args.output_dir, "general_rnn_confusion_matrix.png"), dpi=150, bbox_inches="tight")
         plt.close()
 
-        save_text_results(
-            f"Final F1-Score (Class 0) on held-out: {f1_val:.4f}\nThreshold: {threshold}",
-            args.output_dir, "general_rnn_heldout_metrics.txt"
-        )
+        save_text_results(metrics_text, args.output_dir, "general_rnn_heldout_metrics.txt")
 
         # Per-user F1 distribution
         results_df = analyze_user_f1_distribution(

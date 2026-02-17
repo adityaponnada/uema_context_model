@@ -13,11 +13,21 @@ import os
 import gc
 import json
 import time
+import random
 import argparse
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+import matplotlib.pyplot as plt
+
+# Reproducibility
+SEED = 42
+os.environ['PYTHONHASHSEED'] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
 
 from src.helpers import (
     drop_zero_mi_columns,
@@ -105,7 +115,6 @@ def build_hybrid_gtcn(l_chunk: int, n_features: int, conv_filters: int = 8, kern
     Returns:
         Compiled Keras Model.
     """
-    import tensorflow as tf
     from tensorflow.keras.models import Model
     from tensorflow.keras.layers import (
         Input, Conv1D, multiply, Activation, Dropout, TimeDistributed, Dense, Lambda
@@ -215,7 +224,6 @@ def main() -> None:
     models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
     os.makedirs(models_dir, exist_ok=True)
 
-    import tensorflow as tf
     configure_gpu(args.use_cpu)
 
     # Load data
@@ -288,8 +296,9 @@ def main() -> None:
             os.path.join(models_dir, "best_within_user_gtcn.h5"),
             custom_objects=get_custom_objects(), compile=False, safe_mode=False
         )
-        opt_thresh, best_f1 = find_optimal_threshold(best_model, X_va, Y_va)
+        opt_thresh, best_f1, fig_thresh = find_optimal_threshold(best_model, X_va, Y_va)
         threshold = opt_thresh
+        save_figure(fig_thresh, args.output_dir, "hybrid_rnn_f1_vs_threshold.png")
         save_text_results(
             f"Optimal threshold: {opt_thresh}\nBest F1 (Class 0): {best_f1}",
             args.output_dir, "hybrid_rnn_optimal_threshold.txt"
@@ -299,7 +308,9 @@ def main() -> None:
             os.path.join(models_dir, "best_within_user_gtcn.h5"),
             custom_objects=get_custom_objects(), compile=False, safe_mode=False
         )
-        threshold = args.threshold if args.threshold else 0.47
+        if args.threshold is None:
+            raise ValueError("--threshold is required when using --skip_training (no tuning stage to derive it).")
+        threshold = args.threshold
 
     # Evaluate on held-out data
     if os.path.exists(args.heldout_csv):
@@ -325,15 +336,11 @@ def main() -> None:
         NUM_CHUNKS = 4
         X_final, Y_final, heldout_pids = preprocess_held_out_data(heldout_df, L_CHUNK, NUM_CHUNKS)
 
-        import matplotlib.pyplot as plt
-        f1_val = run_final_test(best_model, X_final, Y_final, threshold=threshold, setup_name="Hybrid GTCN")
+        f1_val, metrics_text = run_final_test(best_model, X_final, Y_final, threshold=threshold, setup_name="Hybrid GTCN")
         plt.savefig(os.path.join(args.output_dir, "hybrid_rnn_confusion_matrix.png"), dpi=150, bbox_inches="tight")
         plt.close()
 
-        save_text_results(
-            f"Final F1-Score (Class 0) on held-out: {f1_val:.4f}\nThreshold: {threshold}",
-            args.output_dir, "hybrid_rnn_heldout_metrics.txt"
-        )
+        save_text_results(metrics_text, args.output_dir, "hybrid_rnn_heldout_metrics.txt")
 
         results_df = analyze_user_f1_distribution(
             best_model, X_final, Y_final, heldout_pids, threshold=threshold

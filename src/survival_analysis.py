@@ -8,11 +8,20 @@ publication-quality plots.
 """
 
 import os
+import random
 import argparse
 from typing import Tuple
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Reproducibility
+SEED = 42
+os.environ['PYTHONHASHSEED'] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
 
 from src.helpers import save_figure, save_text_results
 
@@ -137,8 +146,7 @@ def plot_survival_curves(df_long: pd.DataFrame):
     Returns:
         Matplotlib Figure object.
     """
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+
     from lifelines import KaplanMeierFitter
 
     sns.set_style("whitegrid")
@@ -209,8 +217,7 @@ def plot_retention_distributions(df_long: pd.DataFrame):
     Returns:
         Matplotlib Figure object.
     """
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+
 
     order = ["Actual (Lazy)", "Random (20% Block)", "Setup 1", "Setup 2"]
     palette = {
@@ -350,8 +357,7 @@ def plot_f1_violin(
     Returns:
         Tuple of (fig, ax).
     """
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+
 
     palette = {"Depth Model": "royalblue", "Breadth Model": "forestgreen"}
 
@@ -406,8 +412,7 @@ def plot_f1_violin_heldout(
     Returns:
         Tuple of (fig, ax).
     """
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+
 
     palette = {"Depth Model": "royalblue", "Breadth Model": "forestgreen"}
 

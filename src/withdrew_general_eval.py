@@ -7,10 +7,20 @@ runs zero-shot simulation, and computes study extension projections.
 """
 
 import os
+import random
 import argparse
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+import matplotlib.pyplot as plt
+
+# Reproducibility
+SEED = 42
+os.environ['PYTHONHASHSEED'] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
 
 from src.helpers import (
     configure_gpu,
@@ -43,8 +53,8 @@ def parse_args() -> argparse.Namespace:
                         help="Full path to feature column list .txt file.")
     parser.add_argument("--model_file", type=str, required=True,
                         help="Full path to trained model .h5 file.")
-    parser.add_argument("--threshold", type=float, default=0.43,
-                        help="Decision threshold (default: 0.43).")
+    parser.add_argument("--threshold", type=float, required=True,
+                        help="Decision threshold from model tuning stage.")
     parser.add_argument("--use_cpu", action="store_true", default=True,
                         help="Use CPU only.")
     return parser.parse_args()
@@ -124,7 +134,6 @@ def main() -> None:
     save_text_results(results_text, args.output_dir, "general_rnn_simulation_results.txt")
 
     # Plot reduction rate distribution
-    import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.hist(df_sim["reduction_rate"] * 100, bins=20, color="skyblue", edgecolor="black", alpha=0.7)
     ax.axvline(df_sim["reduction_rate"].mean() * 100, color="red", linestyle="dashed",

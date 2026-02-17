@@ -79,6 +79,7 @@ python -m cli.main withdrew-general \
   --global_means_csv /path/to/output/global_means_general_rnn.csv \
   --column_list /path/to/output/processed_feature_columns.txt \
   --model_file /path/to/models/best_model_safe.h5 \
+  --threshold 0.43 \
   --output_dir /path/to/output
 
 # 9. Evaluate Hybrid GTCN on withdrew participants + random baseline
@@ -88,6 +89,7 @@ python -m cli.main withdrew-hybrid \
   --global_means_csv /path/to/output/global_means_hybrid_rnn.csv \
   --column_list /path/to/output/processed_feature_columns.txt \
   --model_file /path/to/models/best_within_user_gtcn.h5 \
+  --threshold 0.47 \
   --output_dir /path/to/output
 
 # 10. Survival analysis and statistical comparisons

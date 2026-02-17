@@ -958,6 +958,43 @@ def preprocess_held_out_data(
 # Model Evaluation
 # =============================================================================
 
+def _predict_user(model, X_user: np.ndarray, sentinel_value: float = 999.0) -> np.ndarray:
+    """Predict for a single user, handling both 3D and 4D model input shapes.
+
+    The General GTCN (Setup 1) expects 3D input (batch, L_chunk, features),
+    while the Hybrid GTCN (Setup 2) expects 4D input (batch, chunks, L_chunk, features).
+    This function detects the model's expected input rank and iterates over
+    chunks when feeding a 3D model with 4D data.
+
+    Args:
+        model: Trained Keras model.
+        X_user: Single user's data with shape (chunks, L_chunk, features).
+        sentinel_value: Padding value.
+
+    Returns:
+        Flattened prediction array across all chunks.
+    """
+    model_input_rank = len(model.input_shape)
+    data_rank = len(X_user.shape)
+
+    if model_input_rank == 3 and data_rank == 3:
+        # 3D model, 4D data (user slice is 3D: chunks, L_chunk, features)
+        # Feed each chunk separately and concatenate
+        all_probs = []
+        for c in range(X_user.shape[0]):
+            chunk = X_user[c:c + 1]  # (1, L_chunk, features)
+            probs = model.predict(chunk, verbose=0).flatten()
+            all_probs.append(probs)
+        return np.concatenate(all_probs)
+    elif model_input_rank == 4 and data_rank == 3:
+        # 4D model, 4D data (user slice is 3D: chunks, L_chunk, features)
+        # Add batch dimension
+        return model.predict(X_user[np.newaxis], verbose=0).flatten()
+    else:
+        # Fallback: add batch dim and predict
+        return model.predict(X_user[np.newaxis], verbose=0).flatten()
+
+
 def run_final_test(
     model,
     X_held_out: np.ndarray,
@@ -988,24 +1025,54 @@ def run_final_test(
     print(f"\nEvaluating Final Test Set ({setup_name}) with Threshold: {threshold}")
 
     for u in range(len(X_held_out)):
-        probs = model.predict(X_held_out[u:u + 1], verbose=0)
+        y_prob = _predict_user(model, X_held_out[u], sentinel_value)
         y_true = Y_held_out[u].flatten()
-        y_prob = probs.flatten()
         mask = y_true != sentinel_value
         preds = (y_prob[mask] > threshold).astype(int)
         all_true.extend(y_true[mask])
         all_pred.extend(preds)
 
-    print("\n" + "=" * 45)
-    print(f"      FINAL HELD-OUT TEST RESULTS ({setup_name})")
-    print("=" * 45)
-    print(classification_report(
+    report_text = classification_report(
         all_true, all_pred,
         target_names=["Non-Response (C0)", "Response (C1)"]
-    ))
+    )
+
+    header = (
+        "\n" + "=" * 45 + "\n"
+        f"      FINAL HELD-OUT TEST RESULTS ({setup_name})\n"
+        + "=" * 45 + "\n"
+    )
+    print(header)
+    print(report_text)
 
     final_f1_c0 = f1_score(all_true, all_pred, pos_label=0)
-    print(f"\nFinal F1-Score (Class 0): {final_f1_c0:.4f}")
+    print(f"Final F1-Score (Class 0): {final_f1_c0:.4f}")
+
+    # Build full metrics text for saving
+    report_dict = classification_report(
+        all_true, all_pred,
+        target_names=["Non-Response (C0)", "Response (C1)"],
+        output_dict=True,
+    )
+    metrics_text = (
+        f"HELD-OUT TEST RESULTS ({setup_name})\n"
+        f"{'=' * 50}\n"
+        f"Threshold: {threshold}\n\n"
+        f"--- Class 0 (Non-Response) ---\n"
+        f"Precision: {report_dict['Non-Response (C0)']['precision']:.4f}\n"
+        f"Recall:    {report_dict['Non-Response (C0)']['recall']:.4f}\n"
+        f"F1-Score:  {report_dict['Non-Response (C0)']['f1-score']:.4f}\n"
+        f"Support:   {report_dict['Non-Response (C0)']['support']}\n\n"
+        f"--- Class 1 (Response) ---\n"
+        f"Precision: {report_dict['Response (C1)']['precision']:.4f}\n"
+        f"Recall:    {report_dict['Response (C1)']['recall']:.4f}\n"
+        f"F1-Score:  {report_dict['Response (C1)']['f1-score']:.4f}\n"
+        f"Support:   {report_dict['Response (C1)']['support']}\n\n"
+        f"--- Overall ---\n"
+        f"Accuracy:       {report_dict['accuracy']:.4f}\n"
+        f"Macro Avg F1:   {report_dict['macro avg']['f1-score']:.4f}\n"
+        f"Weighted Avg F1:{report_dict['weighted avg']['f1-score']:.4f}\n"
+    )
 
     cm = confusion_matrix(all_true, all_pred, normalize="true")
     plt.figure(figsize=(6, 5))
@@ -1018,7 +1085,7 @@ def run_final_test(
     plt.ylabel("Actual Label")
     plt.xlabel("Predicted Label")
 
-    return final_f1_c0
+    return final_f1_c0, metrics_text
 
 
 def analyze_user_f1_distribution(
@@ -1050,9 +1117,8 @@ def analyze_user_f1_distribution(
     print(f"Starting per-user evaluation for {len(participant_ids)} participants...")
 
     for u in range(len(X_held_out)):
-        probs = model.predict(X_held_out[u:u + 1], verbose=0)
+        y_prob = _predict_user(model, X_held_out[u], sentinel_value)
         y_true = Y_held_out[u].flatten()
-        y_prob = probs.flatten()
         mask = y_true != sentinel_value
         if not np.any(mask):
             continue
@@ -1091,7 +1157,7 @@ def find_optimal_threshold(
     X_val: np.ndarray,
     Y_val: np.ndarray,
     sentinel_value: float = 999.0
-) -> Tuple[float, float]:
+) -> Tuple[float, float, Any]:
     """Find optimal threshold that maximizes F1 for class 0 on validation set.
 
     Args:
@@ -1101,7 +1167,7 @@ def find_optimal_threshold(
         sentinel_value: Padding value.
 
     Returns:
-        Tuple of (optimal_threshold, best_f1_score).
+        Tuple of (optimal_threshold, best_f1_score, fig).
     """
     from sklearn.metrics import precision_recall_curve
     import matplotlib.pyplot as plt
@@ -1110,9 +1176,8 @@ def find_optimal_threshold(
     print("Generating predictions for validation set...")
 
     for u in range(len(X_val)):
-        probs = model.predict(X_val[u:u + 1], verbose=0)
+        y_prob = _predict_user(model, X_val[u], sentinel_value)
         y_true = Y_val[u].flatten()
-        y_prob = probs.flatten()
         mask = y_true != sentinel_value
         all_true.extend(y_true[mask])
         all_probs.extend(y_prob[mask])
@@ -1136,16 +1201,24 @@ def find_optimal_threshold(
     print(f"Best F1 (Class 0): {max_f1:.4f}")
 
     # Plot F1 vs threshold
-    plt.figure(figsize=(8, 5))
-    plt.plot(thresholds, f1_scores[:-1], label="F1 (Class 0)")
-    plt.axvline(best_thresh_c0, color="red", linestyle="--", label=f"Best: {best_thresh_c0:.3f}")
-    plt.xlabel("Threshold (Class 0 prob)")
-    plt.ylabel("F1 Score")
-    plt.title("F1 vs Threshold Curve")
-    plt.legend()
-    plt.grid(True)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(thresholds, f1_scores[:-1], color="darkorange", lw=2, label="F1 Score (Class 0)")
+    ax.axvline(best_thresh_c0, color="red", linestyle="--", alpha=0.6)
+    ax.scatter([best_thresh_c0], [max_f1], color="red", s=100, zorder=5, label="Optimal Point")
+    ax.annotate(
+        f"Max F1: {max_f1:.4f}\nOptimal Thresh (Busy): {best_thresh_c0:.4f}\nOptimal Thresh (Resp): {optimal_threshold:.4f}",
+        xy=(best_thresh_c0, max_f1),
+        xytext=(best_thresh_c0 + 0.05, max_f1 - 0.1),
+        bbox=dict(boxstyle="round,pad=0.5", fc="white", ec="red", alpha=0.8),
+        arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
+    )
+    ax.set_title("Class 0 (Non-Response) F1-Score vs. Threshold", fontsize=14)
+    ax.set_xlabel("Threshold for Non-Response Probability", fontsize=12)
+    ax.set_ylabel("F1 Score", fontsize=12)
+    ax.legend(loc="lower left")
+    ax.grid(alpha=0.3)
 
-    return optimal_threshold, max_f1
+    return optimal_threshold, max_f1, fig
 
 
 def calculate_permutation_importance(
@@ -1178,7 +1251,10 @@ def calculate_permutation_importance(
     # Baseline F1
     all_true, all_base_probs = [], []
     for u in range(len(X_test_4d)):
-        probs = model.predict(X_test_4d[u:u + 1], verbose=0).flatten()
+        X_u = X_test_4d[u]
+        if hasattr(X_u, "numpy"):
+            X_u = X_u.numpy()
+        probs = _predict_user(model, X_u, sentinel_value)
         y_true = Y_test_4d[u]
         if hasattr(y_true, "numpy"):
             y_true = y_true.numpy()
@@ -1206,7 +1282,7 @@ def calculate_permutation_importance(
             for c in range(X_perm.shape[0]):
                 np.random.shuffle(X_perm[c, :, f_idx])
 
-            probs = model.predict(X_perm[np.newaxis], verbose=0).flatten()
+            probs = _predict_user(model, X_perm, sentinel_value)
             y_true = Y_test_4d[u]
             if hasattr(y_true, "numpy"):
                 y_true = y_true.numpy()
@@ -1351,7 +1427,10 @@ def run_zero_shot_simulation(
     print(f"Simulating pings for {len(participant_ids)} participants...")
 
     for i, p_id in enumerate(participant_ids):
-        probs = model.predict(X_tensor[i:i + 1][0], batch_size=1, verbose=0).flatten()
+        X_user = X_tensor[i]
+        if hasattr(X_user, "numpy"):
+            X_user = X_user.numpy()
+        probs = _predict_user(model, X_user, sentinel_value)
         y_true = Y_tensor[i].numpy().flatten() if hasattr(Y_tensor[i], "numpy") else Y_tensor[i].flatten()
         valid_mask = y_true != sentinel_value
         y_true_real = y_true[valid_mask]
