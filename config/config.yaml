@@ -1,0 +1,50 @@
+# UEMA Context Model Configuration
+# Constants extracted from notebooks. These are defaults; CLI args override them.
+
+# General
+sentinel_value: 999.0
+fixed_max_days: 365.0
+
+# Tensor dimensions
+l_chunk: 3967
+num_chunks_train: 1    # Setup 2 (Hybrid) training chunks
+num_chunks_val: 4      # Validation / evaluation chunks
+
+# Training
+epochs_general: 20
+epochs_hybrid: 20
+train_frac_hybrid: 0.1  # Within-user split fraction for Setup 2
+
+# Model architecture (GTCN)
+conv_filters: 8
+kernel_size: 32
+dropout_rate: 0.2
+
+# Class weights for weighted loss
+class_weight_0: 0.8   # Non-response (majority)
+class_weight_1: 0.2   # Response (minority)
+
+# Default thresholds (overridable via CLI)
+threshold_general: 0.43
+threshold_hybrid: 0.47
+
+# Random baseline simulation
+random_block_rate: 0.20
+mc_iterations: 50
+
+# Columns to z-normalize
+cols_to_scale:
+  - dist_from_home
+  - last_phone_usage
+  - closeness_to_sleep_time
+  - closeness_to_wake_time
+  - mims_5min
+  - completion_24h
+  - completion_1h
+  - time_between_prompts
+  - time_since_last_answered
+  - completion_since_wake
+  - completion_since_start
+
+# Import prep
+n_train_participants: 100
