@@ -32,17 +32,17 @@ def parse_args() -> argparse.Namespace:
         description="Survival analysis comparing model setups and random baseline."
     )
     parser.add_argument("--output_dir", type=str, required=True,
-                        help="Directory to save output figures and results.")
+                        help="Directory containing intermediate files and where outputs are saved.")
     parser.add_argument("--random_csv", type=str, required=True,
-                        help="Full path to random baseline simulation CSV file.")
+                        help="Filename of random baseline simulation CSV (in output_dir).")
     parser.add_argument("--s1_extension_csv", type=str, required=True,
-                        help="Full path to Setup 1 study extension CSV file.")
+                        help="Filename of Setup 1 study extension CSV (in output_dir).")
     parser.add_argument("--s2_extension_csv", type=str, required=True,
-                        help="Full path to Setup 2 study extension CSV file.")
+                        help="Filename of Setup 2 study extension CSV (in output_dir).")
     parser.add_argument("--general_f1_csv", type=str, default=None,
-                        help="Full path to generalized model per-user F1 scores CSV file (optional).")
+                        help="Filename of generalized model per-user F1 scores CSV (in output_dir, optional).")
     parser.add_argument("--hybrid_f1_csv", type=str, default=None,
-                        help="Full path to hybrid model per-user F1 scores CSV file (optional).")
+                        help="Filename of hybrid model per-user F1 scores CSV (in output_dir, optional).")
     return parser.parse_args()
 
 
@@ -599,15 +599,20 @@ def main() -> None:
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
+    # Resolve filenames against output_dir
+    random_csv_path = os.path.join(args.output_dir, args.random_csv)
+    s1_extension_path = os.path.join(args.output_dir, args.s1_extension_csv)
+    s2_extension_path = os.path.join(args.output_dir, args.s2_extension_csv)
+
     # Load simulation results
-    df_sim_random = pd.read_csv(args.random_csv)
-    print(f"Random baseline: {args.random_csv} {df_sim_random.shape}")
+    df_sim_random = pd.read_csv(random_csv_path)
+    print(f"Random baseline: {random_csv_path} {df_sim_random.shape}")
 
-    df_s1 = pd.read_csv(args.s1_extension_csv)
-    print(f"Setup 1 extension: {args.s1_extension_csv} {df_s1.shape}")
+    df_s1 = pd.read_csv(s1_extension_path)
+    print(f"Setup 1 extension: {s1_extension_path} {df_s1.shape}")
 
-    df_s2 = pd.read_csv(args.s2_extension_csv)
-    print(f"Setup 2 extension: {args.s2_extension_csv} {df_s2.shape}")
+    df_s2 = pd.read_csv(s2_extension_path)
+    print(f"Setup 2 extension: {s2_extension_path} {df_s2.shape}")
 
     # Prepare survival DataFrame
     df_survival = prepare_survival_dataframe(df_sim_random, df_s1, df_s2)
@@ -638,13 +643,19 @@ def main() -> None:
     save_text_results(hr_text, args.output_dir, "hazard_ratio_results.txt")
 
     # Held-out F1 comparison (if CSVs provided)
-    if args.general_f1_csv and args.hybrid_f1_csv and os.path.exists(args.general_f1_csv) and os.path.exists(args.hybrid_f1_csv):
-        df_general_f1 = pd.read_csv(args.general_f1_csv)
-        df_hybrid_f1 = pd.read_csv(args.hybrid_f1_csv)
+    general_f1_path = os.path.join(args.output_dir, args.general_f1_csv) if args.general_f1_csv else None
+    hybrid_f1_path = os.path.join(args.output_dir, args.hybrid_f1_csv) if args.hybrid_f1_csv else None
+
+    if general_f1_path and hybrid_f1_path and os.path.exists(general_f1_path) and os.path.exists(hybrid_f1_path):
+        df_general_f1 = pd.read_csv(general_f1_path)
+        df_hybrid_f1 = pd.read_csv(hybrid_f1_path)
 
         # Rename columns for consistency if needed
         if "f1_score_c0" in df_general_f1.columns:
             df_general_f1.rename(columns={"f1_score_c0": "f1_score"}, inplace=True)
+        
+        if "f1_score_c0" in df_hybrid_f1.columns:
+            df_hybrid_f1.rename(columns={"f1_score_c0": "f1_score"}, inplace=True)
 
         print(f"\nGeneralized model F1 min: {df_general_f1['f1_score'].min():.4f}")
         print(f"Hybrid model F1 min: {df_hybrid_f1['f1_score'].min():.4f}")

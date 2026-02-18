@@ -92,12 +92,12 @@ python -m cli.main withdrew-hybrid \
 
 # 10. Survival analysis and statistical comparisons
 python -m cli.main survival \
-  --random_csv /path/to/output/withdrawn_user_random_baseline_simulation.csv \
-  --s1_extension_csv /path/to/output/withdrawn_user_study_extension_setup1.csv \
-  --s2_extension_csv /path/to/output/withdrawn_user_study_extension_setup2.csv \
-  --general_f1_csv /path/to/output/general_f1_scores.csv \
-  --hybrid_f1_csv /path/to/output/hybrid_f1_scores.csv \
-  --output_dir /path/to/output
+  --output_dir /path/to/output \
+  --random_csv withdrawn_user_random_baseline_simulation.csv \
+  --s1_extension_csv withdrawn_user_study_extension_setup1.csv \
+  --s2_extension_csv withdrawn_user_study_extension_setup2.csv \
+  --general_f1_csv general_f1_scores.csv \
+  --hybrid_f1_csv hybrid_f1_scores.csv
 ```
 
 ### Step-specific help
