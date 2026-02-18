@@ -26,6 +26,7 @@ Pipeline Steps (run in order):
   8. withdrew-general     Evaluate General GTCN on withdrew participants
   9. withdrew-hybrid      Evaluate Hybrid GTCN on withdrew participants + random baseline
   10. survival            Survival analysis and statistical comparisons
+  11. combine-results     Merge all result .txt files into full_analysis.txt
 
 Example:
   python -m cli.main import-prep --data_dir /path/to/data --output_dir /path/to/output
@@ -46,6 +47,7 @@ Example:
             "withdrew-general",
             "withdrew-hybrid",
             "survival",
+            "combine-results",
         ],
         help="Pipeline step to execute.",
     )
@@ -76,6 +78,8 @@ Example:
         from src.withdrew_hybrid_eval import main as step_main
     elif args.step == "survival":
         from src.survival_analysis import main as step_main
+    elif args.step == "combine-results":
+        from src.combine_results_txt import main as step_main
     else:
         parser.print_help()
         sys.exit(1)
