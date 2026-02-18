@@ -7,7 +7,6 @@ runs zero-shot simulation, and computes study extension projections.
 """
 
 import os
-import random
 import argparse
 
 import numpy as np
@@ -15,14 +14,8 @@ import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-# Reproducibility
-SEED = 42
-os.environ['PYTHONHASHSEED'] = str(SEED)
-random.seed(SEED)
-np.random.seed(SEED)
-tf.random.set_seed(SEED)
-
 from src.helpers import (
+    set_global_seed,
     configure_gpu,
     impute_within_participant,
     z_normalize_within_participant,
@@ -60,6 +53,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Main evaluation pipeline for General GTCN on withdrew data."""
+    set_global_seed()
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 

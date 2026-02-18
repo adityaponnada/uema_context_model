@@ -12,7 +12,6 @@ import os
 import gc
 import json
 import time
-import random
 import argparse
 from pathlib import Path
 
@@ -21,14 +20,8 @@ import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-# Reproducibility
-SEED = 42
-os.environ['PYTHONHASHSEED'] = str(SEED)
-random.seed(SEED)
-np.random.seed(SEED)
-tf.random.set_seed(SEED)
-
 from src.helpers import (
+    set_global_seed,
     drop_zero_mi_columns,
     impute_group_median_then_ffill,
     impute_test_with_medians_and_ffill,
@@ -225,6 +218,7 @@ def train_model(
 
 def main() -> None:
     """Main pipeline for General GTCN training and evaluation."""
+    set_global_seed()
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
     models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")

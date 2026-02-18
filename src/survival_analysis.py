@@ -8,7 +8,6 @@ publication-quality plots.
 """
 
 import os
-import random
 import argparse
 from typing import Tuple
 
@@ -17,13 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Reproducibility
-SEED = 42
-os.environ['PYTHONHASHSEED'] = str(SEED)
-random.seed(SEED)
-np.random.seed(SEED)
-
-from src.helpers import save_figure, save_text_results
+from src.helpers import set_global_seed, save_figure, save_text_results
 
 
 def parse_args() -> argparse.Namespace:
@@ -596,6 +589,7 @@ def compute_hazard_ratios(df_long: pd.DataFrame) -> Tuple[pd.DataFrame, str]:
 
 def main() -> None:
     """Main survival analysis pipeline."""
+    set_global_seed()
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 

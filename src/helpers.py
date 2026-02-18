@@ -14,10 +14,50 @@ import gc
 import glob
 import json
 import time
+import random
 from typing import List, Tuple, Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
+import yaml
+
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+def _load_config() -> dict:
+    """Load config.yaml from the project config/ directory."""
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "config.yaml"
+    )
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def set_global_seed(seed: int = None) -> int:
+    """Set reproducibility seed for all relevant libraries.
+
+    If seed is None, reads the default from config/config.yaml.
+
+    Args:
+        seed: Random seed value. Defaults to config value.
+
+    Returns:
+        The seed value that was set.
+    """
+    import tensorflow as tf
+
+    if seed is None:
+        cfg = _load_config()
+        seed = cfg.get("seed", 42)
+
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    print(f"Global seed set to {seed}")
+    return seed
 
 
 # =============================================================================
