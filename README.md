@@ -98,6 +98,9 @@ python -m cli.main survival \
   --s2_extension_csv withdrawn_user_study_extension_setup2.csv \
   --general_f1_csv general_f1_scores.csv \
   --hybrid_f1_csv hybrid_f1_scores.csv
+
+# 11. Combine all result .txt files into a single summary
+python -m cli.main combine-results /path/to/output
 ```
 
 ### Step-specific help
@@ -122,7 +125,8 @@ uema_context_model/
 │   ├── prep_withdrawn_data.py            # Step 7: Withdrawn participant prep
 │   ├── withdrew_general_eval.py          # Step 8: Withdrew eval (Setup 1)
 │   ├── withdrew_hybrid_eval.py           # Step 9: Withdrew eval (Setup 2) + random baseline
-│   └── survival_analysis.py             # Step 10: Survival analysis
+│   ├── survival_analysis.py             # Step 10: Survival analysis
+│   └── combine_results_txt.py          # Step 11: Merge result .txt files
 ├── cli/
 │   └── main.py                          # CLI entry point
 ├── config/
