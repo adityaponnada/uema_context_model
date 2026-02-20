@@ -1172,16 +1172,31 @@ def analyze_user_f1_distribution(
 
     df_scores = pd.DataFrame(user_scores)
 
+    # Build descriptive stats text
+    desc = df_scores["f1_score_c0"].describe()
+    median_val = df_scores["f1_score_c0"].median()
+    mean_val = df_scores["f1_score_c0"].mean()
+
+    stats_text = (
+        f"Count:   {desc['count']:.0f}\n"
+        f"Mean:    {desc['mean']:.4f}\n"
+        f"Median:  {median_val:.4f}\n"
+        f"Std:     {desc['std']:.4f}\n"
+        f"Min:     {desc['min']:.4f}\n"
+        f"25%:     {desc['25%']:.4f}\n"
+        f"50%:     {desc['50%']:.4f}\n"
+        f"75%:     {desc['75%']:.4f}\n"
+        f"Max:     {desc['max']:.4f}\n"
+    )
+
     print("\n" + "=" * 30)
     print(" PER-USER F1 STATS (CLASS 0)")
     print("=" * 30)
-    print(df_scores["f1_score_c0"].describe())
+    print(stats_text)
 
     # Plot distribution
     plt.figure(figsize=(12, 6))
     sns.histplot(df_scores["f1_score_c0"], bins=15, kde=True, color="teal", alpha=0.6)
-    mean_val = df_scores["f1_score_c0"].mean()
-    median_val = df_scores["f1_score_c0"].median()
     plt.axvline(mean_val, color="red", linestyle="--", linewidth=2, label=f"Mean: {mean_val:.3f}")
     plt.axvline(median_val, color="green", linestyle="--", linewidth=2, label=f"Median: {median_val:.3f}")
     plt.title("Per-User F1-Score Distribution (Class 0)")
@@ -1189,7 +1204,7 @@ def analyze_user_f1_distribution(
     plt.ylabel("Count")
     plt.legend()
 
-    return df_scores
+    return df_scores, stats_text
 
 
 def find_optimal_threshold(

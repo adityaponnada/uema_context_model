@@ -343,13 +343,19 @@ def main() -> None:
 
         save_text_results(metrics_text, args.output_dir, "hybrid_rnn_heldout_metrics.txt")
 
-        results_df = analyze_user_f1_distribution(
+        results_df, f1_stats_text = analyze_user_f1_distribution(
             best_model, X_final, Y_final, heldout_pids, threshold=threshold
         )
         plt.savefig(os.path.join(args.output_dir, "hybrid_rnn_f1_distribution.png"), dpi=150, bbox_inches="tight")
         plt.close()
 
         results_df.to_csv(os.path.join(args.output_dir, "hybrid_f1_scores.csv"), index=False)
+
+        f1_stats_header = (
+            "Per-User F1 Descriptive Statistics for Hybrid GTCN (Class 0)\n"
+            f"{'=' * 60}\n\n"
+        )
+        save_text_results(f1_stats_header + f1_stats_text, args.output_dir, "hybrid_rnn_user_f1_stats.txt")
         print("Saved per-user F1 scores")
 
     print("\nHybrid RNN pipeline complete.")
