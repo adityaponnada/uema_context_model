@@ -366,6 +366,11 @@ def plot_f1_boxplot(
         palette=palette, width=0.5, fliersize=4,
     )
 
+    # Set fill alpha on box patches
+    for patch in ax.patches:
+        fc = patch.get_facecolor()
+        patch.set_facecolor((*fc[:3], 0.5))
+
     ax.axhline(baseline, color="red", linestyle="--", linewidth=1.25)
     ax.set_ylim(0, 1)
 
@@ -418,6 +423,11 @@ def plot_f1_boxplot_heldout(
         x="model", y="f1", data=data, ax=ax,
         palette=palette, width=0.5, fliersize=4,
     )
+
+    # Set fill alpha on box patches
+    for patch in ax.patches:
+        fc = patch.get_facecolor()
+        patch.set_facecolor((*fc[:3], 0.5))
 
     ax.axhline(baseline, color="red", linestyle="--", linewidth=1.0)
     ax.set_ylim(0, 1)
