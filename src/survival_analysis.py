@@ -331,14 +331,14 @@ def compare_model_performance(df_s1: pd.DataFrame, df_s2: pd.DataFrame) -> str:
     return text
 
 
-def plot_f1_violin(
+def plot_f1_boxplot(
     df_s1: pd.DataFrame,
     df_s2: pd.DataFrame,
     fcol: str = "f1",
     labels: Tuple[str, str] = ("Depth Model", "Breadth Model"),
     baseline: float = 0.20,
 ):
-    """Create violin plot comparing F1 distributions for two model setups.
+    """Create box-and-whiskers plot comparing F1 distributions for two model setups.
 
     Args:
         df_s1: Setup 1 DataFrame containing fcol.
@@ -350,8 +350,6 @@ def plot_f1_violin(
     Returns:
         Tuple of (fig, ax).
     """
-
-
     palette = {"Depth Model": "royalblue", "Breadth Model": "forestgreen"}
 
     s1 = df_s1[fcol].dropna().astype(float)
@@ -363,9 +361,9 @@ def plot_f1_violin(
     ], ignore_index=True)
 
     fig, ax = plt.subplots(figsize=(6, 4))
-    sns.violinplot(
+    sns.boxplot(
         x="model", y="f1", data=data, ax=ax,
-        inner="quartile", palette=palette, alpha=0.5, cut=0,
+        palette=palette, width=0.5, fliersize=4,
     )
 
     ax.axhline(baseline, color="red", linestyle="--", linewidth=1.25)
@@ -386,14 +384,14 @@ def plot_f1_violin(
     return fig, ax
 
 
-def plot_f1_violin_heldout(
+def plot_f1_boxplot_heldout(
     df_generalized: pd.DataFrame,
     df_hybrid: pd.DataFrame,
     fcol: str = "f1_score",
     labels: Tuple[str, str] = ("Depth Model", "Breadth Model"),
     baseline: float = 0.20,
 ):
-    """Create violin plot comparing held-out F1 distributions.
+    """Create box-and-whiskers plot comparing held-out F1 distributions.
 
     Args:
         df_generalized: Generalized model F1 scores.
@@ -405,8 +403,6 @@ def plot_f1_violin_heldout(
     Returns:
         Tuple of (fig, ax).
     """
-
-
     palette = {"Depth Model": "royalblue", "Breadth Model": "forestgreen"}
 
     s1 = df_generalized[fcol].dropna().astype(float)
@@ -418,10 +414,9 @@ def plot_f1_violin_heldout(
     ], ignore_index=True)
 
     fig, ax = plt.subplots(figsize=(6, 4))
-    sns.violinplot(
+    sns.boxplot(
         x="model", y="f1", data=data, ax=ax,
-        inner="quartile", palette=palette,
-        linewidth=1.5, edgecolor="black", alpha=0.5, cut=0,
+        palette=palette, width=0.5, fliersize=4,
     )
 
     ax.axhline(baseline, color="red", linestyle="--", linewidth=1.0)
@@ -630,8 +625,8 @@ def main() -> None:
     save_text_results(ttest_text, args.output_dir, "setup1_vs_setup2_ttest_results.txt")
 
     # Violin plot: Setup 1 vs Setup 2 F1
-    fig_violin, _ = plot_f1_violin(df_s1, df_s2, fcol="f1")
-    save_figure(fig_violin, args.output_dir, "f1_violin_setup1_vs_setup2.png")
+    fig_box, _ = plot_f1_boxplot(df_s1, df_s2, fcol="f1")
+    save_figure(fig_box, args.output_dir, "f1_boxplot_setup1_vs_setup2.png")
 
     # Hazard ratio analysis
     df_hr, hr_text = compute_hazard_ratios(df_survival)
@@ -657,8 +652,8 @@ def main() -> None:
         print(f"Hybrid model F1 min: {df_hybrid_f1['f1_score'].min():.4f}")
 
         # Violin plot: Generalized vs Hybrid held-out F1
-        fig_violin_ho, _ = plot_f1_violin_heldout(df_general_f1, df_hybrid_f1, fcol="f1_score")
-        save_figure(fig_violin_ho, args.output_dir, "f1_violin_generalized_vs_hybrid.png")
+        fig_box_ho, _ = plot_f1_boxplot_heldout(df_general_f1, df_hybrid_f1, fcol="f1_score")
+        save_figure(fig_box_ho, args.output_dir, "f1_boxplot_generalized_vs_hybrid.png")
 
         # Paired t-test on held-out F1
         heldout_ttest_text = paired_ttest_f1(df_general_f1, df_hybrid_f1, fcol="f1_score")
