@@ -218,7 +218,10 @@ def train_model(
 
 def main() -> None:
     """Main pipeline for General GTCN training and evaluation."""
-    set_global_seed()
+    seed = set_global_seed()
+    print("=" * 60)
+    print(f"  Global seed set to: {seed}")
+    print("=" * 60)
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
     models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
