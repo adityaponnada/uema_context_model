@@ -1452,10 +1452,10 @@ def run_zero_shot_simulation(
         models_dir: Directory containing model files.
 
     Returns:
-        DataFrame with simulation results per participant.
+        Tuple of (DataFrame with simulation results, overall classification metrics text).
     """
     from tensorflow.keras.models import load_model
-    from sklearn.metrics import f1_score
+    from sklearn.metrics import f1_score, classification_report
 
     full_model_path = os.path.join(models_dir, model_path) if not os.path.isabs(model_path) else model_path
     print(f"\nLoading model: {full_model_path}")
@@ -1503,7 +1503,32 @@ def run_zero_shot_simulation(
     overall_f1 = f1_score(all_true_agg, all_pred_agg, pos_label=0, zero_division=0)
     print(f"Overall F1 (Class 0): {overall_f1:.4f}")
     print(f"Mean Reduction Rate: {df_sim['reduction_rate'].mean() * 100:.2f}%")
-    return df_sim
+
+    # Build overall classification metrics
+    report_dict = classification_report(
+        all_true_agg, all_pred_agg,
+        target_names=["Non-Response (C0)", "Response (C1)"],
+        output_dict=True,
+    )
+    overall_metrics_text = (
+        f"--- Class 0 (Non-Response) ---\n"
+        f"Precision: {report_dict['Non-Response (C0)']['precision']:.4f}\n"
+        f"Recall:    {report_dict['Non-Response (C0)']['recall']:.4f}\n"
+        f"F1-Score:  {report_dict['Non-Response (C0)']['f1-score']:.4f}\n"
+        f"Support:   {report_dict['Non-Response (C0)']['support']}\n\n"
+        f"--- Class 1 (Response) ---\n"
+        f"Precision: {report_dict['Response (C1)']['precision']:.4f}\n"
+        f"Recall:    {report_dict['Response (C1)']['recall']:.4f}\n"
+        f"F1-Score:  {report_dict['Response (C1)']['f1-score']:.4f}\n"
+        f"Support:   {report_dict['Response (C1)']['support']}\n\n"
+        f"--- Overall ---\n"
+        f"Accuracy:        {report_dict['accuracy']:.4f}\n"
+        f"Macro Avg F1:    {report_dict['macro avg']['f1-score']:.4f}\n"
+        f"Weighted Avg F1: {report_dict['weighted avg']['f1-score']:.4f}\n"
+    )
+    print(overall_metrics_text)
+
+    return df_sim, overall_metrics_text
 
 
 def calculate_study_extension(

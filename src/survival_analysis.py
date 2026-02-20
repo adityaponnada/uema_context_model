@@ -538,6 +538,8 @@ def compute_hazard_ratios(df_long: pd.DataFrame) -> Tuple[pd.DataFrame, str]:
         ("Setup 1", "Actual (Lazy)"),
         ("Setup 2", "Actual (Lazy)"),
         ("Setup 2", "Setup 1"),
+        ("Setup 1", "Random (20% Block)"),
+        ("Setup 2", "Random (20% Block)"),
     ]
 
     hr_results = []

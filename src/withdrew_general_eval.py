@@ -112,7 +112,7 @@ def main() -> None:
     # Run zero-shot simulation
     models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
     model_file = os.path.join(models_dir, "best_model_safe.h5")
-    df_sim = run_zero_shot_simulation(
+    df_sim, sim_metrics_text = run_zero_shot_simulation(
         model_file, X_withdrawn, Y_withdrawn, p_ids,
         threshold=args.threshold, models_dir=models_dir
     )
@@ -120,12 +120,16 @@ def main() -> None:
 
     # Print simulation stats
     results_text = (
-        f"Setup 1 Simulation Results\n"
-        f"{'=' * 40}\n"
+        f"General GTCN (Setup 1) - Withdrew User Simulation Results\n"
+        f"{'=' * 60}\n"
+        f"Threshold: {args.threshold}\n\n"
         f"Mean reduction rate: {df_sim['reduction_rate'].mean() * 100:.2f}%\n"
         f"Std reduction rate: {df_sim['reduction_rate'].std() * 100:.2f}%\n"
         f"Mean F1 (Class 0): {df_sim['f1_score_c0'].mean():.4f}\n"
-        f"Std F1 (Class 0): {df_sim['f1_score_c0'].std():.4f}\n"
+        f"Std F1 (Class 0): {df_sim['f1_score_c0'].std():.4f}\n\n"
+        f"Overall Classification Metrics\n"
+        f"{'-' * 40}\n"
+        f"{sim_metrics_text}"
     )
     print(results_text)
     save_text_results(results_text, args.output_dir, "general_rnn_simulation_results.txt")
@@ -151,8 +155,8 @@ def main() -> None:
     )
 
     extension_text = (
-        f"Setup 1 Study Extension Results\n"
-        f"{'=' * 40}\n"
+        f"Projected Study Extension Results for General GTCN (Setup 1)\n"
+        f"{'=' * 60}\n"
         f"Mean F1: {df_extension['f1'].mean():.4f}\n"
         f"Std F1: {df_extension['f1'].std():.4f}\n"
         f"Mean projected days: {df_extension['projected_days'].mean():.2f}\n"

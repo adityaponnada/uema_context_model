@@ -275,7 +275,11 @@ def main() -> None:
         model.summary(print_fn=lambda x: summary_lines.append(x))
         summary_text = "\n".join(summary_lines)
         print(summary_text)
-        save_text_results(summary_text, args.output_dir, "hybrid_gtcn_model_summary.txt")
+        model_summary_header = (
+            "Hybrid GTCN Model Architecture Summary\n"
+            f"{'=' * 60}\n\n"
+        )
+        save_text_results(model_summary_header + summary_text, args.output_dir, "hybrid_gtcn_model_summary.txt")
 
         # Train
         history = train_hybrid_model(model, X_tr, Y_tr, X_va, Y_va, args.epochs, models_dir)
@@ -293,10 +297,13 @@ def main() -> None:
         opt_thresh, best_f1, fig_thresh = find_optimal_threshold(best_model, X_va, Y_va)
         threshold = opt_thresh
         save_figure(fig_thresh, args.output_dir, "hybrid_rnn_f1_vs_threshold.png")
-        save_text_results(
-            f"Optimal threshold: {opt_thresh}\nBest F1 (Class 0): {best_f1}",
-            args.output_dir, "hybrid_rnn_optimal_threshold.txt"
+        threshold_text = (
+            "Final Threshold and Max F1 Score for Hybrid GTCN\n"
+            f"{'=' * 60}\n\n"
+            f"Optimal threshold: {opt_thresh}\n"
+            f"Best F1 (Class 0): {best_f1}\n"
         )
+        save_text_results(threshold_text, args.output_dir, "hybrid_rnn_optimal_threshold.txt")
     else:
         best_model = tf.keras.models.load_model(
             os.path.join(models_dir, "best_within_user_gtcn.h5"),
