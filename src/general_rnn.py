@@ -406,6 +406,24 @@ def main() -> None:
         save_text_results(f1_stats_header + f1_stats_text, args.output_dir, "general_rnn_user_f1_stats.txt")
         print("Saved per-user F1 scores")
 
+        # Permutation feature importance on held-out data
+        heldout_feature_cols = [c for c in heldout_df.columns if c not in ["participant_id", "outcome"]]
+        df_importance = calculate_permutation_importance(
+            best_model, X_final, Y_final,
+            feature_names=heldout_feature_cols, threshold=threshold
+        )
+        df_importance.to_csv(os.path.join(args.output_dir, "general_rnn_feature_importance.csv"), index=False)
+
+        top10 = df_importance.head(10)
+        top10_text = (
+            "Top 10 Features by Permutation Importance for General GTCN\n"
+            f"{'=' * 60}\n\n"
+        )
+        for rank, (_, row) in enumerate(top10.iterrows(), 1):
+            top10_text += f"  {rank:2d}. {row['feature']:<35s}  importance: {row['importance']:.4f}\n"
+        print(top10_text)
+        save_text_results(top10_text, args.output_dir, "general_rnn_top10_features.txt")
+
     print("\nGeneral RNN pipeline complete.")
 
 
