@@ -42,6 +42,7 @@ from src.helpers import (
     DEFAULT_COLS_TO_SCALE,
     save_figure,
     save_text_results,
+    plot_gtcn_tsne,
 )
 
 
@@ -375,6 +376,15 @@ def main() -> None:
             top10_text += f"  {rank:2d}. {row['feature']:<35s}  importance: {row['importance']:.4f}\n"
         print(top10_text)
         save_text_results(top10_text, args.output_dir, "hybrid_rnn_top10_features.txt")
+
+        # t-SNE latent space visualization on held-out data
+        hybrid_model_path = os.path.join(models_dir, "best_within_user_gtcn.h5")
+        tsne_fig, tsne_summary = plot_gtcn_tsne(
+            hybrid_model_path, X_final, Y_final,
+            model_name="Hybrid GTCN (Setup 2)"
+        )
+        save_figure(tsne_fig, args.output_dir, "hybrid_rnn_tsne_latent_space.png")
+        save_text_results(tsne_summary, args.output_dir, "hybrid_rnn_tsne_summary.txt")
 
     print("\nHybrid RNN pipeline complete.")
 

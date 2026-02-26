@@ -1725,6 +1725,159 @@ def save_figure(fig, output_dir: str, filename: str) -> None:
     plt.close(fig)
 
 
+def plot_gtcn_tsne(
+    model_path: str,
+    X_test: np.ndarray,
+    Y_test: np.ndarray,
+    model_name: str = "GTCN"
+) -> Tuple[Any, str]:
+    """Visualize GTCN latent space using t-SNE on held-out data.
+
+    Loads the model, identifies the bottleneck layer (handling both Setup 1 flat
+    and Setup 2 nested/TimeDistributed architectures), extracts embeddings, and
+    produces a 2D t-SNE scatter plot colored by class label.
+
+    Args:
+        model_path: Full path to the saved .h5 model file.
+        X_test: 4D array (N_users, Chunks, L_chunk, Features).
+        Y_test: 4D array (N_users, Chunks, L_chunk, 1).
+        model_name: Display name for the model in plot title.
+
+    Returns:
+        Tuple of (matplotlib Figure, summary text string).
+    """
+    import tensorflow as tf
+    from tensorflow.keras.models import load_model, Model
+    from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    sentinel = get_sentinel_value()
+    print(f"\n--- Processing Latent Space for: {model_name} ---")
+
+    # Load the model using shared custom objects
+    full_model = load_model(
+        model_path, custom_objects=get_custom_objects(), compile=False
+    )
+
+    # Detect architecture: Setup 2 (Nested/TimeDistributed) vs Setup 1 (Flat)
+    is_setup_2 = any(
+        'TimeDistributed' in layer.__class__.__name__
+        and isinstance(getattr(layer, 'layer', None), tf.keras.Model)
+        for layer in full_model.layers
+    )
+
+    if is_setup_2:
+        structure_label = "Setup 2 (Nested Hybrid)"
+        print(f"Structure Detected: {structure_label}")
+        td_layer = next(
+            l for l in full_model.layers
+            if 'TimeDistributed' in l.__class__.__name__
+            and isinstance(l.layer, tf.keras.Model)
+        )
+        inner_model = td_layer.layer
+
+        # Find inner bottleneck layer
+        inner_bottleneck = None
+        for layer in reversed(inner_model.layers):
+            if 'activation' in layer.name or 'multiply' in layer.name:
+                inner_bottleneck = layer.name
+                break
+
+        inner_embedding_model = Model(
+            inputs=inner_model.input,
+            outputs=inner_model.get_layer(inner_bottleneck).output
+        )
+        embedding_model = Model(
+            inputs=full_model.input,
+            outputs=tf.keras.layers.TimeDistributed(inner_embedding_model)(full_model.input)
+        )
+        bottleneck_name = inner_bottleneck
+        print(f"Targeting Inner Bottleneck: {inner_bottleneck}")
+    else:
+        structure_label = "Setup 1 (Flat Depth)"
+        print(f"Structure Detected: {structure_label}")
+        layer_name = None
+        for layer in reversed(full_model.layers):
+            if ('activation' in layer.name or 'multiply' in layer.name) \
+                    and 'time_distributed' not in layer.name:
+                layer_name = layer.name
+                break
+
+        embedding_model = Model(
+            inputs=full_model.input,
+            outputs=full_model.get_layer(layer_name).output
+        )
+        bottleneck_name = layer_name
+        print(f"Targeting Bottleneck Layer: {layer_name}")
+
+    # Extract embeddings per user
+    all_embeddings, all_labels = [], []
+    print("Extracting embeddings (flattening temporal dimension)...")
+
+    for u in range(len(X_test)):
+        emb = embedding_model.predict(X_test[u:u + 1], verbose=0)
+        y_true = Y_test[u]
+        if hasattr(y_true, "numpy"):
+            y_true = y_true.numpy()
+        y_true = y_true.flatten()
+        mask = y_true != sentinel
+
+        emb_flat = emb.reshape(-1, emb.shape[-1])
+        all_embeddings.append(emb_flat[mask])
+        all_labels.append(y_true[mask])
+
+    X_emb = np.vstack(all_embeddings)
+    y_emb = np.concatenate(all_labels)
+
+    # Downsample and run t-SNE
+    sample_size = min(5000, len(X_emb))
+    print(f"Running t-SNE on {sample_size} valid samples...")
+    idx = np.random.choice(len(X_emb), sample_size, replace=False)
+
+    tsne = TSNE(
+        n_components=2, perplexity=40, n_iter=1000,
+        random_state=42, init='pca', learning_rate='auto'
+    )
+    X_2d = tsne.fit_transform(X_emb[idx])
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(10, 8))
+    df_plot = pd.DataFrame({
+        'Dim 1': X_2d[:, 0],
+        'Dim 2': X_2d[:, 1],
+        'State': [
+            'Available (C1)' if l == 1 else 'Busy (C0)' for l in y_emb[idx]
+        ]
+    })
+
+    sns.scatterplot(
+        data=df_plot, x='Dim 1', y='Dim 2', hue='State',
+        palette={'Available (C1)': 'royalblue', 'Busy (C0)': 'darkorange'},
+        alpha=0.6, s=30, edgecolor=None, ax=ax
+    )
+    ax.set_title(f"Latent Space: {model_name}\n(Unseen Users)", fontsize=14)
+    ax.grid(alpha=0.2)
+
+    # Build summary text
+    n_c0 = int(np.sum(y_emb[idx] == 0))
+    n_c1 = int(np.sum(y_emb[idx] == 1))
+    summary_text = (
+        f"t-SNE Latent Space Summary for {model_name}\n"
+        f"{'=' * 60}\n\n"
+        f"Structure Detected: {structure_label}\n"
+        f"Bottleneck Layer:   {bottleneck_name}\n"
+        f"Total Valid Samples: {len(X_emb)}\n"
+        f"t-SNE Sample Size:  {sample_size}\n\n"
+        f"Class Distribution (sampled):\n"
+        f"  Busy (C0):      {n_c0}\n"
+        f"  Available (C1): {n_c1}\n"
+    )
+    print(summary_text)
+
+    return fig, summary_text
+
+
 def save_text_results(content: str, output_dir: str, filename: str) -> None:
     """Save text results to a .txt file in the output directory.
 
