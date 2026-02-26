@@ -594,6 +594,47 @@ def compute_hazard_ratios(df_long: pd.DataFrame) -> Tuple[pd.DataFrame, str]:
     return df_hr, text
 
 
+def plot_effective_days_density(df_s1: pd.DataFrame, df_s2: pd.DataFrame):
+    """Create stacked density plots of effective_days for Setup 1 and Setup 2.
+
+    Both subplots share the same x-axis for direct comparison.
+    Mean values are highlighted with vertical dotted lines.
+
+    Args:
+        df_s1: Setup 1 extension DataFrame with effective_days column.
+        df_s2: Setup 2 extension DataFrame with effective_days column.
+
+    Returns:
+        Matplotlib Figure object.
+    """
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    # Setup 1
+    s1_data = df_s1["effective_days"].dropna()
+    s1_mean = s1_data.mean()
+    sns.kdeplot(data=s1_data, ax=ax1, color="royalblue", fill=True, alpha=0.3, linewidth=2)
+    ax1.axvline(s1_mean, color="royalblue", linestyle=":", linewidth=2, label=f"Mean: {s1_mean:.1f} days")
+    ax1.set_title("Setup 1 (Depth Model)", fontsize=13, fontweight="bold")
+    ax1.set_ylabel("Density")
+    ax1.legend(fontsize=11)
+    ax1.grid(True, linestyle=":", alpha=0.4)
+
+    # Setup 2
+    s2_data = df_s2["effective_days"].dropna()
+    s2_mean = s2_data.mean()
+    sns.kdeplot(data=s2_data, ax=ax2, color="forestgreen", fill=True, alpha=0.3, linewidth=2)
+    ax2.axvline(s2_mean, color="forestgreen", linestyle=":", linewidth=2, label=f"Mean: {s2_mean:.1f} days")
+    ax2.set_title("Setup 2 (Breadth Model)", fontsize=13, fontweight="bold")
+    ax2.set_xlabel("Effective Days (Recall Class 1 × Projected Days)")
+    ax2.set_ylabel("Density")
+    ax2.legend(fontsize=11)
+    ax2.grid(True, linestyle=":", alpha=0.4)
+
+    plt.suptitle("Effective Days Distribution Comparison", fontsize=15, fontweight="bold", y=0.98)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    return fig
+
+
 def main() -> None:
     """Main survival analysis pipeline."""
     set_global_seed()
@@ -614,6 +655,16 @@ def main() -> None:
 
     df_s2 = pd.read_csv(s2_extension_path)
     print(f"Setup 2 extension: {s2_extension_path} {df_s2.shape}")
+
+    # Compute effective_days = recall_class_1 * projected_days
+    df_s1["effective_days"] = df_s1["recall_class_1"] * df_s1["projected_days"]
+    df_s2["effective_days"] = df_s2["recall_class_1"] * df_s2["projected_days"]
+    print(f"Setup 1 mean effective_days: {df_s1['effective_days'].mean():.2f}")
+    print(f"Setup 2 mean effective_days: {df_s2['effective_days'].mean():.2f}")
+
+    # Effective days density plot
+    fig_eff = plot_effective_days_density(df_s1, df_s2)
+    save_figure(fig_eff, args.output_dir, "effective_days_density_comparison.png")
 
     # Prepare survival DataFrame
     df_survival = prepare_survival_dataframe(df_sim_random, df_s1, df_s2)
