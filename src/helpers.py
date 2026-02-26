@@ -1820,11 +1820,28 @@ def plot_gtcn_tsne(
         print(f"Targeting Bottleneck Layer: {layer_name}")
 
     # Extract embeddings per user
+    # Detect model input rank to handle 3D models fed with 4D data
+    model_input_rank = len(embedding_model.input_shape)
     all_embeddings, all_labels = [], []
     print("Extracting embeddings (flattening temporal dimension)...")
 
     for u in range(len(X_test)):
-        emb = embedding_model.predict(X_test[u:u + 1], verbose=0)
+        X_user = X_test[u]
+        if hasattr(X_user, "numpy"):
+            X_user = X_user.numpy()
+
+        if model_input_rank == 3 and len(X_user.shape) == 3:
+            # 3D model with 4D data (user slice is 3D: chunks, L_chunk, features)
+            # Feed each chunk separately and concatenate
+            chunk_embs = []
+            for c in range(X_user.shape[0]):
+                chunk_emb = embedding_model.predict(X_user[c:c + 1], verbose=0)
+                chunk_embs.append(chunk_emb)
+            emb = np.concatenate(chunk_embs, axis=1)
+        else:
+            # 4D model or matching ranks — feed directly
+            emb = embedding_model.predict(X_user[np.newaxis], verbose=0)
+
         y_true = Y_test[u]
         if hasattr(y_true, "numpy"):
             y_true = y_true.numpy()
