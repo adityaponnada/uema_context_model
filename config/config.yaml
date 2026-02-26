@@ -2,7 +2,7 @@
 # Constants extracted from notebooks. These are defaults; CLI args override them.
 
 # General
-seed: 42
+seed: 123
 sentinel_value: 999.0
 fixed_max_days: 365.0
 
