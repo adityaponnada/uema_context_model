@@ -1860,9 +1860,11 @@ def plot_gtcn_tsne(
     print(f"Running t-SNE on {sample_size} valid samples...")
     idx = np.random.choice(len(X_emb), sample_size, replace=False)
 
+    # Fall back to random init when embedding dim < 2 (PCA needs >= n_components features)
+    tsne_init = 'pca' if X_emb.shape[1] >= 2 else 'random'
     tsne = TSNE(
         n_components=2, perplexity=40, max_iter=1000,
-        random_state=42, init='pca', learning_rate='auto'
+        random_state=42, init=tsne_init, learning_rate='auto'
     )
     X_2d = tsne.fit_transform(X_emb[idx])
 
