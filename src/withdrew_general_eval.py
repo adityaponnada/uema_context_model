@@ -51,6 +51,24 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def get_withdrew_observation_counts(df: pd.DataFrame) -> pd.DataFrame:
+    """Count the number of observations per withdrew participant.
+
+    Args:
+        df: DataFrame with a 'participant_id' column.
+
+    Returns:
+        DataFrame with participant_id and observation_count columns.
+    """
+    counts = (
+        df.groupby("participant_id")
+        .size()
+        .reset_index(name="observation_count")
+    )
+    print(f"Withdrew observation counts: {len(counts)} participants")
+    return counts
+
+
 def main() -> None:
     """Main evaluation pipeline for General GTCN on withdrew data."""
     set_global_seed()
@@ -68,6 +86,11 @@ def main() -> None:
     withdrew_features = pd.read_csv(args.withdrew_csv)
     print(f"Loaded withdrew CSV: {args.withdrew_csv}")
     print(f"Withdrew features shape: {withdrew_features.shape}")
+
+    # Save per-participant observation counts
+    df_obs_counts = get_withdrew_observation_counts(withdrew_features)
+    df_obs_counts.to_csv(os.path.join(args.output_dir, "withdrew_obs.csv"), index=False)
+    print("Saved withdrew observation counts to withdrew_obs.csv")
 
     # Load training statistics
     global_median = pd.read_csv(medians_csv_path)
