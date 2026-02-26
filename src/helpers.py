@@ -1500,6 +1500,11 @@ def run_zero_shot_simulation(
         successful_blocks = np.sum((y_true_real == 0.0) & ~pings_sent_mask)
         total_busy_moments = np.sum(y_true_real == 0.0)
 
+        # Recall for class 1: TP(C1) / (TP(C1) + FN(C1))
+        total_response = np.sum(y_true_real == 1.0)
+        correct_response = np.sum((y_true_real == 1.0) & (y_pred_real == 1))
+        user_recall_c1 = correct_response / total_response if total_response > 0 else 0.0
+
         all_true_agg.extend(y_true_real)
         all_pred_agg.extend(y_pred_real)
 
@@ -1512,6 +1517,7 @@ def run_zero_shot_simulation(
             "successful_blocks": int(successful_blocks),
             "reduction_rate": float(reduction_rate),
             "f1_score_c0": float(user_f1),
+            "recall_class_1": float(user_recall_c1),
         })
 
     df_sim = pd.DataFrame(simulation_results)
@@ -1571,6 +1577,7 @@ def calculate_study_extension(
         actual_days = row["actual_days_in_study"]
         model_pings = row["model_intrusive_pings"]
         f1 = row["f1_score_c0"]
+        recall_c1 = row.get("recall_class_1", np.nan)
 
         v_lazy = threshold / actual_days if actual_days > 0 else 0
         v_model = model_pings / actual_days if actual_days > 0 else 0
@@ -1587,6 +1594,7 @@ def calculate_study_extension(
             "participant_id": p_id,
             "threshold": threshold,
             "f1": f1,
+            "recall_class_1": recall_c1,
             "actual_days": actual_days,
             "v_lazy": v_lazy,
             "v_model": v_model,
