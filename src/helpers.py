@@ -1903,6 +1903,174 @@ def plot_gtcn_tsne(
     return fig, summary_text
 
 
+def extract_archetypes(
+    model_path: str,
+    X_tensor: np.ndarray,
+    Y_tensor: np.ndarray,
+    feature_names: list,
+    model_name: str = "Model",
+    n_archetypes: int = 3,
+    prob_threshold: float = 0.70
+) -> Tuple[pd.DataFrame, str]:
+    """Cluster high-confidence Busy predictions in the GTCN latent space using K-Means.
+
+    Identifies behavioral archetypes of non-receptivity by extracting embeddings
+    from the model's bottleneck layer, filtering for high-confidence Busy
+    predictions, and clustering with K-Means.
+
+    Args:
+        model_path: Full path to the saved .h5 model file.
+        X_tensor: 4D array (N_users, Chunks, L_chunk, Features).
+        Y_tensor: 4D array (N_users, Chunks, L_chunk, 1).
+        feature_names: List of feature column names matching the last dim of X_tensor.
+        model_name: Display name for the model in output text.
+        n_archetypes: Number of K-Means clusters (default: 3).
+        prob_threshold: Minimum P(Busy) to include a moment (default: 0.70).
+
+    Returns:
+        Tuple of (profiles_df, archetype_summary_text) where profiles_df has
+        cluster mean feature values (index=Archetype, columns=features) and
+        archetype_summary_text lists top 5 distinguishing features per archetype.
+    """
+    import tensorflow as tf
+    from tensorflow.keras.models import load_model, Model
+    from sklearn.cluster import KMeans
+
+    sentinel = get_sentinel_value()
+    print(f"\n--- Extracting Behavioral Archetypes: {model_name} ---")
+
+    # Load model using shared custom objects
+    full_model = load_model(
+        model_path, custom_objects=get_custom_objects(), compile=False
+    )
+
+    # Detect architecture: Setup 2 (Nested/TimeDistributed) vs Setup 1 (Flat)
+    is_setup_2 = any(
+        'TimeDistributed' in layer.__class__.__name__
+        and isinstance(getattr(layer, 'layer', None), tf.keras.Model)
+        for layer in full_model.layers
+    )
+
+    if is_setup_2:
+        print("Detected Structure: Setup 2 (Nested Hybrid)")
+        td_layer = next(
+            l for l in full_model.layers
+            if 'TimeDistributed' in l.__class__.__name__
+            and isinstance(l.layer, tf.keras.Model)
+        )
+        inner_model = td_layer.layer
+        inner_bottleneck = None
+        for layer in reversed(inner_model.layers):
+            if 'activation' in layer.name or 'multiply' in layer.name:
+                inner_bottleneck = layer.name
+                break
+        inner_emb_model = Model(
+            inputs=inner_model.input,
+            outputs=inner_model.get_layer(inner_bottleneck).output
+        )
+        embedding_model = Model(
+            inputs=full_model.input,
+            outputs=tf.keras.layers.TimeDistributed(inner_emb_model)(full_model.input)
+        )
+        print(f"Targeting Inner Bottleneck: {inner_bottleneck}")
+    else:
+        print("Detected Structure: Setup 1 (Flat Depth)")
+        layer_name = None
+        for layer in reversed(full_model.layers):
+            if ('activation' in layer.name or 'multiply' in layer.name) \
+                    and 'time_distributed' not in layer.name:
+                layer_name = layer.name
+                break
+        embedding_model = Model(
+            inputs=full_model.input,
+            outputs=full_model.get_layer(layer_name).output
+        )
+        print(f"Targeting Bottleneck Layer: {layer_name}")
+
+    # Extract embeddings and raw features for high-confidence Busy moments
+    model_input_rank = len(embedding_model.input_shape)
+    full_model_input_rank = len(full_model.input_shape)
+    all_embeddings, all_raw_features = [], []
+
+    for u in range(len(X_tensor)):
+        X_user = X_tensor[u]
+        if hasattr(X_user, "numpy"):
+            X_user = X_user.numpy()
+
+        # Get predictions — handle 3D model with 4D data (chunk by chunk)
+        if full_model_input_rank == 3 and len(X_user.shape) == 3:
+            chunk_probs = []
+            for c in range(X_user.shape[0]):
+                p = full_model.predict(X_user[c:c + 1], verbose=0).flatten()
+                chunk_probs.append(p)
+            probs = np.concatenate(chunk_probs)
+        else:
+            probs = full_model.predict(X_user[np.newaxis], verbose=0).flatten()
+
+        # Get embeddings — same chunk-by-chunk pattern
+        if model_input_rank == 3 and len(X_user.shape) == 3:
+            chunk_embs = []
+            for c in range(X_user.shape[0]):
+                chunk_emb = embedding_model.predict(X_user[c:c + 1], verbose=0)
+                chunk_embs.append(chunk_emb)
+            emb = np.concatenate(chunk_embs, axis=1)
+        else:
+            emb = embedding_model.predict(X_user[np.newaxis], verbose=0)
+
+        # Flatten temporal dimensions
+        emb_flat = emb.reshape(-1, emb.shape[-1])
+        raw_x = X_user.reshape(-1, len(feature_names))
+
+        # Filter: high-confidence Busy AND not padding
+        # P(Busy) = 1 - P(Available), since model outputs P(class 1)
+        busy_mask = ((1.0 - probs) > prob_threshold) & (raw_x[:, 0] != sentinel)
+
+        if np.any(busy_mask):
+            all_embeddings.append(emb_flat[busy_mask])
+            all_raw_features.append(raw_x[busy_mask])
+
+    X_emb = np.vstack(all_embeddings)
+    X_raw = np.vstack(all_raw_features)
+    print(f"Collected {len(X_emb)} high-confidence Busy moments (threshold={prob_threshold})")
+
+    # K-Means clustering on latent embeddings
+    print(f"Identifying {n_archetypes} behavioral archetypes...")
+    kmeans = KMeans(n_clusters=n_archetypes, random_state=42, n_init=10)
+    clusters = kmeans.fit_predict(X_emb)
+
+    # Profile generation: mean raw feature values per archetype
+    df_raw = pd.DataFrame(X_raw, columns=feature_names)
+    df_raw['Archetype'] = clusters
+    profiles = df_raw.groupby('Archetype').mean()
+
+    # Build summary text with top 5 distinguishing features per archetype
+    lines = [
+        f"Archetype Behavioral Decoding: {model_name}",
+        "=" * 60,
+        f"Number of archetypes: {n_archetypes}",
+        f"Probability threshold: {prob_threshold}",
+        f"Total high-confidence Busy moments: {len(X_emb)}",
+        f"Cluster sizes: {dict(zip(*np.unique(clusters, return_counts=True)))}",
+        "",
+    ]
+
+    for i in range(n_archetypes):
+        cluster_mean = profiles.loc[i]
+        other_mean = profiles.drop(i).mean()
+        diff = cluster_mean - other_mean
+        top_positive = diff.sort_values(ascending=False).head(5)
+
+        lines.append(f"Archetype #{i} (n={int((clusters == i).sum())}) — Signatures of non-receptivity:")
+        for feat, val in top_positive.items():
+            lines.append(f"  [+] {feat:30s} (Lift: {val:+.2f})")
+        lines.append("")
+
+    summary_text = "\n".join(lines)
+    print(summary_text)
+
+    return profiles, summary_text
+
+
 def save_text_results(content: str, output_dir: str, filename: str) -> None:
     """Save text results to a .txt file in the output directory.
 

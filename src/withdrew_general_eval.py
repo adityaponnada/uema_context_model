@@ -23,6 +23,7 @@ from src.helpers import (
     calculate_burden_thresholds,
     run_zero_shot_simulation,
     calculate_study_extension,
+    extract_archetypes,
     plot_actual_vs_projected_density,
     save_figure,
     save_text_results,
@@ -207,6 +208,13 @@ def main() -> None:
         df_extension, title="Actual vs Projected Days (Setup 1)"
     )
     save_figure(fig3, args.output_dir, "general_rnn_actual_vs_projected_density.png")
+
+    # Archetype analysis (K-Means on latent space)
+    profiles_df, archetype_text = extract_archetypes(
+        model_file, X_withdrawn, Y_withdrawn, my_features, model_name="General GTCN (Setup 1)"
+    )
+    profiles_df.to_csv(os.path.join(args.output_dir, "general_archetype_profiles.csv"))
+    save_text_results(archetype_text, args.output_dir, "general_archetype_summary.txt")
 
     print("\nSetup 1 evaluation complete.")
 

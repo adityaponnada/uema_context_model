@@ -22,6 +22,7 @@ from src.helpers import (
     calculate_burden_thresholds,
     run_zero_shot_simulation,
     calculate_study_extension,
+    extract_archetypes,
     simulate_random_baseline,
     plot_actual_vs_projected_density,
     save_figure,
@@ -181,6 +182,13 @@ def main() -> None:
         df_extension, title="Actual vs Projected Days (Setup 2)"
     )
     save_figure(fig3, args.output_dir, "hybrid_rnn_actual_vs_projected_density.png")
+
+    # Archetype analysis (K-Means on latent space)
+    profiles_df, archetype_text = extract_archetypes(
+        model_file, X_withdrawn, Y_withdrawn, my_features, model_name="Hybrid GTCN (Setup 2)"
+    )
+    profiles_df.to_csv(os.path.join(args.output_dir, "hybrid_archetype_profiles.csv"))
+    save_text_results(archetype_text, args.output_dir, "hybrid_archetype_summary.txt")
 
     # --- Random Baseline ---
     print("\n" + "=" * 50)
