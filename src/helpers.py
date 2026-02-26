@@ -1861,7 +1861,7 @@ def plot_gtcn_tsne(
     idx = np.random.choice(len(X_emb), sample_size, replace=False)
 
     tsne = TSNE(
-        n_components=2, perplexity=40, n_iter=1000,
+        n_components=2, perplexity=40, max_iter=1000,
         random_state=42, init='pca', learning_rate='auto'
     )
     X_2d = tsne.fit_transform(X_emb[idx])
