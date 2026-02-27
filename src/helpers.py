@@ -551,7 +551,7 @@ def z_normalize_columns(
         for c in cols:
             mean_val = group[c].mean()
             std_val = group[c].std(ddof=ddof)
-            if pd.isna(std_val) or std_val == 0:
+            if pd.isna(std_val) or std_val < 1e-10:
                 std_val = 1.0
             group[c] = (group[c] - mean_val) / std_val
         return group
@@ -611,7 +611,7 @@ def z_normalize_test_using_global_mean(
         for c in cols:
             gm = gm_map.get(c, 0.0)
             std_val = group[c].std(ddof=ddof)
-            if pd.isna(std_val) or std_val == 0:
+            if pd.isna(std_val) or std_val < 1e-10:
                 std_val = 1.0
             group[c] = (group[c] - gm) / std_val
         return group
@@ -671,7 +671,7 @@ def z_normalize_within_participant(
             if pd.isna(gm):
                 gm = group[c].mean()
             std_val = group[c].std()
-            if pd.isna(std_val) or std_val == 0:
+            if pd.isna(std_val) or std_val < 1e-10:
                 std_val = 1.0
             group[c] = (group[c] - gm) / std_val
         return group
