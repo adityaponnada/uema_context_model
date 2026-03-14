@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(python3.11:*)",
+      "Bash(for:*)",
+      "Bash(do python3.11 -c \"import ast; ast.parse\\(open\\(''$f''\\).read\\(\\)\\); print\\(''$f: OK''\\)\")",
+      "Bash(done)",
+      "Bash(brew install:*)"
+    ]
+  }
+}

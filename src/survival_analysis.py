@@ -3,13 +3,13 @@ Step 10: Survival analysis comparing model setups and random baseline.
 
 Reads simulation results from Setup 1, Setup 2, and Random Baseline,
 performs Kaplan-Meier survival analysis, log-rank tests, paired t-tests
-on F1 scores, Cox proportional hazard ratio analysis, and generates
-publication-quality plots.
+and permutation tests on F1 scores, Cox proportional hazard ratio
+analysis, and generates publication-quality plots.
 """
 
 import os
 import argparse
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -522,6 +522,154 @@ def paired_ttest_f1(
     return text
 
 
+def permutation_test_f1(
+    df_a: pd.DataFrame,
+    df_b: pd.DataFrame,
+    fcol_a: str = "f1_score",
+    fcol_b: str = "f1_score",
+    label_a: str = "Model A",
+    label_b: str = "Model B",
+    title: str = "PERMUTATION TEST: F1 COMPARISON",
+    id_col: Optional[str] = None,
+    n_perms: int = 10000,
+    alpha: float = 0.05,
+    seed: int = 42,
+) -> str:
+    """Perform a paired permutation test on F1 scores between two models.
+
+    Uses sign-flipping permutation under the null hypothesis that there is no
+    systematic difference between the two models. Applicable to both:
+    - Held-out data: Generalized vs Hybrid (pair by positional index, id_col=None)
+    - Withdrew data: Setup 1 vs Setup 2 (pair by participant ID, id_col="participant_id")
+
+    Args:
+        df_a: DataFrame containing F1 scores for model A.
+        df_b: DataFrame containing F1 scores for model B.
+        fcol_a: Column name for F1 scores in df_a.
+        fcol_b: Column name for F1 scores in df_b.
+        label_a: Display label for model A.
+        label_b: Display label for model B.
+        title: Section header for the results summary.
+        id_col: If provided, merge on this column to pair participants;
+                otherwise pair by positional index (common index first,
+                then truncate to min length).
+        n_perms: Number of permutations.
+        alpha: Significance level for null distribution CI and verdict.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        Formatted string with permutation test summary including observed
+        mean difference, Cohen's d effect size with magnitude label,
+        directionality, null distribution CI, and two-sided p-value.
+    """
+    rng = np.random.default_rng(seed)
+
+    # --- Align paired observations ---
+    if id_col is not None:
+        df_merged = pd.merge(
+            df_a[[id_col, fcol_a]],
+            df_b[[id_col, fcol_b]],
+            on=id_col,
+            suffixes=("_a", "_b"),
+        )
+        # After merge: if fcol_a == fcol_b pandas appends _a/_b; otherwise no suffix
+        col_a_merged = f"{fcol_a}_a" if fcol_a == fcol_b else fcol_a
+        col_b_merged = f"{fcol_b}_b" if fcol_a == fcol_b else fcol_b
+        valid = df_merged[col_a_merged].notna() & df_merged[col_b_merged].notna()
+        a = df_merged.loc[valid, col_a_merged].astype(float).values
+        b = df_merged.loc[valid, col_b_merged].astype(float).values
+    else:
+        s_a = df_a[fcol_a].astype(float)
+        s_b = df_b[fcol_b].astype(float)
+        common_idx = s_a.index.intersection(s_b.index)
+        if len(common_idx) > 0:
+            mask = s_a.loc[common_idx].notna() & s_b.loc[common_idx].notna()
+            a = s_a.loc[common_idx][mask].values
+            b = s_b.loc[common_idx][mask].values
+        else:
+            a = s_a.dropna().reset_index(drop=True)
+            b = s_b.dropna().reset_index(drop=True)
+            nmin = min(len(a), len(b))
+            a = a.iloc[:nmin].values
+            b = b.iloc[:nmin].values
+
+    n = len(a)
+    if n < 2:
+        msg = "Not enough paired observations for permutation test (need >= 2)."
+        print(msg)
+        return msg
+
+    # --- Observed test statistic: mean paired difference (B - A) ---
+    differences = b - a
+    t_obs = np.mean(differences)
+
+    # --- Permutation distribution via sign-flipping ---
+    t_perms = np.empty(n_perms)
+    for i in range(n_perms):
+        signs = rng.choice(np.array([-1.0, 1.0]), size=n)
+        t_perms[i] = np.mean(differences * signs)
+
+    # --- Two-sided p-value ---
+    p_value = float(np.mean(np.abs(t_perms) >= np.abs(t_obs)))
+
+    # --- Null distribution CI ---
+    ci_lo = float(np.percentile(t_perms, 100 * alpha / 2))
+    ci_hi = float(np.percentile(t_perms, 100 * (1 - alpha / 2)))
+
+    # --- Effect size: Cohen's d on paired differences ---
+    sd_diff = float(np.std(differences, ddof=1))
+    cohens_d = t_obs / sd_diff if sd_diff > 0 else np.nan
+
+    if np.isnan(cohens_d) or abs(cohens_d) < 0.2:
+        effect_magnitude = "Negligible"
+    elif abs(cohens_d) < 0.5:
+        effect_magnitude = "Small"
+    elif abs(cohens_d) < 0.8:
+        effect_magnitude = "Medium"
+    else:
+        effect_magnitude = "Large"
+
+    # --- Verdict and directionality ---
+    if p_value < alpha:
+        verdict = "Statistically Significant"
+        if t_obs > 0:
+            direction = f"{label_b} significantly outperforms {label_a}."
+        else:
+            direction = f"{label_a} significantly outperforms {label_b}."
+    else:
+        verdict = "Not Statistically Significant"
+        direction = "No significant difference detected; result likely due to chance."
+
+    mean_a = float(np.mean(a))
+    mean_b = float(np.mean(b))
+
+    results_lines = []
+    results_lines.append("=" * 60)
+    results_lines.append(f"   {title}")
+    results_lines.append("=" * 60)
+    results_lines.append(f"N paired observations:      {n}")
+    results_lines.append(f"N permutations:             {n_perms:,}")
+    results_lines.append(f"Mean F1 {label_a}:           {mean_a:.4f}")
+    results_lines.append(f"Mean F1 {label_b}:           {mean_b:.4f}")
+    results_lines.append(f"Observed mean diff")
+    results_lines.append(f"  ({label_b} - {label_a}):  {t_obs:+.4f}")
+    results_lines.append("-" * 60)
+    results_lines.append(f"P-value (two-sided):        {p_value:.4f}")
+    results_lines.append(
+        f"Null dist. {int((1 - alpha) * 100)}% CI:     [{ci_lo:+.4f}, {ci_hi:+.4f}]"
+    )
+    results_lines.append(f"Cohen's d (effect size):    {cohens_d:.4f}")
+    results_lines.append(f"Effect magnitude:           {effect_magnitude}")
+    results_lines.append("-" * 60)
+    results_lines.append(f"VERDICT:        {verdict}")
+    results_lines.append(f"DIRECTIONALITY: {direction}")
+    results_lines.append("=" * 60)
+
+    text = "\n".join(results_lines)
+    print(text)
+    return text
+
+
 def compute_hazard_ratios(df_long: pd.DataFrame) -> Tuple[pd.DataFrame, str]:
     """Compute hazard ratios using Cox Proportional Hazards regression.
 
@@ -685,6 +833,16 @@ def main() -> None:
     ttest_text = compare_model_performance(df_s1, df_s2)
     save_text_results(ttest_text, args.output_dir, "setup1_vs_setup2_ttest_results.txt")
 
+    # Permutation test: Setup 1 vs Setup 2 F1 scores (withdrew data)
+    perm_withdrew_text = permutation_test_f1(
+        df_s1, df_s2,
+        fcol_a="f1", fcol_b="f1",
+        label_a="Setup 1", label_b="Setup 2",
+        title="PERMUTATION TEST: SETUP 1 vs SETUP 2 (Withdrew F1)",
+        id_col="participant_id",
+    )
+    save_text_results(perm_withdrew_text, args.output_dir, "setup1_vs_setup2_permutation_results.txt")
+
     # Violin plot: Setup 1 vs Setup 2 F1
     fig_box, _ = plot_f1_boxplot(df_s1, df_s2, fcol="f1")
     save_figure(fig_box, args.output_dir, "f1_boxplot_setup1_vs_setup2.png")
@@ -719,6 +877,16 @@ def main() -> None:
         # Paired t-test on held-out F1
         heldout_ttest_text = paired_ttest_f1(df_general_f1, df_hybrid_f1, fcol="f1_score")
         save_text_results(heldout_ttest_text, args.output_dir, "heldout_paired_ttest_results.txt")
+
+        # Permutation test on held-out F1
+        perm_heldout_text = permutation_test_f1(
+            df_general_f1, df_hybrid_f1,
+            fcol_a="f1_score", fcol_b="f1_score",
+            label_a="Generalized", label_b="Hybrid",
+            title="PERMUTATION TEST: GENERALIZED vs HYBRID (Held-out F1)",
+            id_col=None,
+        )
+        save_text_results(perm_heldout_text, args.output_dir, "heldout_permutation_results.txt")
     else:
         print("\nSkipping held-out F1 comparison (CSVs not found).")
 
